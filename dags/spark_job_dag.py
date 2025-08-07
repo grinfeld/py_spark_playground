@@ -9,11 +9,11 @@ from airflow import DAG
 from airflow.decorators import task
 
 # Add the project root to Python path (works in Docker and local)
-from utils import add_project_root_to_path
+from lib.utils import add_project_root_to_path
 add_project_root_to_path()
 
 # Import our shared Spark job module
-from spark_job import run_spark_job
+from jobs.spark_job import run_spark_job
 
 # Airflow 3.0 DAG using decorators
 @dag(

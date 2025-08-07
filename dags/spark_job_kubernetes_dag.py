@@ -11,7 +11,7 @@ from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import Kubernete
 from airflow.providers.cncf.kubernetes.backcompat.pod import Port
 
 # Add the project root to Python path (works in Docker and local)
-from utils import add_project_root_to_path
+from lib.utils import add_project_root_to_path
 add_project_root_to_path()
 
 # Airflow 3.0 DAG using decorators for Kubernetes
@@ -38,11 +38,11 @@ def spark_job_kubernetes_dag():
         namespace='default',
         image='your-registry/py-spark:latest',  # Your Spark Docker image
         cmds=['python'],
-        arguments=['-c', '''
+         arguments=['-c', '''
 import sys
-from utils import add_project_root_to_path
+from lib.utils import add_project_root_to_path
 add_project_root_to_path()
-from spark_job import run_spark_job
+from jobs.spark_job import run_spark_job
 result = run_spark_job()
 print(f"Kubernetes Spark job completed: {result}")
 '''],

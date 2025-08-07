@@ -30,6 +30,7 @@ RUN mkdir -p /opt/spark/jars/iceberg \
     && cp *.jar /opt/spark/jars/
 
 # Set working directory
+# Note: The application code is copied in for spark-app; master/worker override CMD
 WORKDIR /app
 
 # Copy requirements first for better caching
@@ -52,5 +53,7 @@ RUN mkdir -p /tmp/spark-events /tmp/spark-logs
 # Expose port for Spark UI (optional)
 EXPOSE 4040
 
-# Default command
-CMD ["python", "main.py"]
+# Default command (overridden by compose for master/worker)
+CMD ["python", "-m", "dags.standalone.main"]
+
+

@@ -49,7 +49,9 @@ services:
 
   # Spark Master
   spark-master:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
     container_name: spark-master
     depends_on:
       - minio
@@ -85,7 +87,9 @@ services:
 
   # Spark Worker 1
   spark-worker-1:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
     container_name: spark-worker-1
     depends_on:
       - spark-master
@@ -120,7 +124,9 @@ services:
 
   # Spark Worker 2
   spark-worker-2:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
     container_name: spark-worker-2
     depends_on:
       - spark-master
@@ -155,7 +161,9 @@ services:
 
   # Spark Worker 3
   spark-worker-3:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
     container_name: spark-worker-3
     depends_on:
       - spark-master
@@ -211,7 +219,9 @@ services:
 
   # Spark Application Driver
   spark-app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
     container_name: spark-app-distributed
     depends_on:
       - spark-master

@@ -33,9 +33,6 @@ services:
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
       - ./data:/opt/airflow/data
-      - ./config_manager.py:/opt/airflow/dags/config_manager.py
-      - ./storage_utils.py:/opt/airflow/dags/storage_utils.py
-      - ./spark_job.py:/opt/airflow/dags/spark_job.py
       - ./requirements.txt:/opt/airflow/requirements.txt
     ports:
       - "8080:8080"
@@ -45,6 +42,8 @@ services:
       timeout: 10s
       retries: 5
     restart: always
+    networks:
+      - spark-network
 
   airflow-scheduler:
     build:
@@ -65,9 +64,6 @@ services:
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
       - ./data:/opt/airflow/data
-      - ./config_manager.py:/opt/airflow/dags/config_manager.py
-      - ./storage_utils.py:/opt/airflow/dags/storage_utils.py
-      - ./spark_job.py:/opt/airflow/dags/spark_job.py
       - ./requirements.txt:/opt/airflow/requirements.txt
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
@@ -75,6 +71,8 @@ services:
       timeout: 10s
       retries: 5
     restart: always
+    networks:
+      - spark-network
 
   airflow-init:
     build:
@@ -92,9 +90,6 @@ services:
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
       - ./data:/opt/airflow/data
-      - ./config_manager.py:/opt/airflow/dags/config_manager.py
-      - ./storage_utils.py:/opt/airflow/dags/storage_utils.py
-      - ./spark_job.py:/opt/airflow/dags/spark_job.py
       - ./requirements.txt:/opt/airflow/requirements.txt
     command: version
     healthcheck:
@@ -103,6 +98,8 @@ services:
       timeout: 10s
       retries: 5
     restart: on-failure
+    networks:
+      - spark-network
 
   # PostgreSQL for Airflow metadata
   postgres:
@@ -137,9 +134,185 @@ services:
       timeout: 20s
       retries: 3
     restart: always
+    networks:
+      - spark-network
+
+  # MinIO Client for setup (bucket creation and policies)
+  minio-client:
+    image: minio/mc:latest
+    container_name: minio-client-airflow
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: >
+      sh -c "
+        sleep 10 &&
+        mc alias set myminio http://minio:9000 minioadmin minioadmin &&
+        mc mb myminio/spark-data || true &&
+        mc mb myminio/spark-output || true &&
+        mc mb myminio/spark-checkpoints || true &&
+        mc policy set public myminio/spark-data || true &&
+        mc policy set public myminio/spark-output || true &&
+        mc policy set public myminio/spark-checkpoints || true &&
+        echo 'MinIO setup completed'
+      "
+    networks:
+      - spark-network
+
+  # Spark Master
+  spark-master:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-master
+    depends_on:
+      - minio
+      - minio-client
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+      - STORAGE_BUCKET=spark-data
+    ports:
+      - "8081:8080"  # Spark Master UI (8080 inside container)
+      - "7077:7077"  # Spark Master RPC
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 15 &&
+        /opt/spark/sbin/start-master.sh &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.master.Master-*.out
+      "
+
+  # Spark Worker 1
+  spark-worker-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-1
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+  # Spark Worker 2
+  spark-worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-2
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+  # Spark Worker 3
+  spark-worker-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-3
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
 
 
 
 volumes:
   postgres-db-volume:
   minio-data:
+  spark_logs:
+  spark_work:
+
+networks:
+  spark-network:

@@ -7,7 +7,7 @@ This module shows how to work with storage without any if statements.
 import os
 from typing import Dict, List
 from pyspark.sql import SparkSession, DataFrame
-from config_manager import config_manager
+from .config_manager import config_manager
 
 
 def write_dataframe_to_storage(df: DataFrame, filename: str, format: str = "parquet") -> str:
@@ -135,3 +135,5 @@ def read_iceberg_table(spark: SparkSession, table_name: str, catalog: str = None
     
     table_path = f"{catalog}.default.{table_name}"
     return spark.table(table_path)
+
+

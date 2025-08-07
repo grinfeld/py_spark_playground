@@ -66,9 +66,6 @@ class StorageBackend:
         return self.get_common_spark_configs()
 
 
-
-
-
 class CatalogBackend(ABC):
     """Abstract base class for catalog backends."""
     
@@ -111,8 +108,6 @@ class CatalogBackend(ABC):
 class HiveCatalog(CatalogBackend):
     """Hive catalog implementation."""
     
-
-    
     def get_catalog_configs(self, catalog_name: str) -> Dict[str, str]:
         """Get Hive catalog configuration."""
         # Get common configurations
@@ -130,10 +125,6 @@ class HiveCatalog(CatalogBackend):
 
 class GlueCatalog(CatalogBackend):
     """AWS Glue catalog implementation."""
-    
-
-    
-
     
     def get_catalog_configs(self, catalog_name: str) -> Dict[str, str]:
         """Get Glue catalog configuration."""
@@ -183,9 +174,6 @@ class S3Catalog(CatalogBackend):
             })
         
         return configs
-
-
-
 
 
 class ConfigManager:
@@ -266,11 +254,9 @@ class ConfigManager:
             "iceberg_table": f"spark_catalog.default.{filename}_iceberg",
             "glue_table": f"glue_catalog.default.{filename}_glue"
         }
-    
-
-    
-
 
 
 # Global config manager instance
 config_manager = ConfigManager()
+
+
