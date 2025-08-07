@@ -1,0 +1,39 @@
+# Core PySpark dependencies
+pyspark>=4.0.0
+
+# Apache Iceberg support
+pyiceberg>=0.9.1
+
+# AWS Glue support
+boto3>=1.40.4
+botocore>=1.40.4
+
+# Data processing and analysis
+pandas>=2.3.1
+numpy>=2.0.2
+
+# Development and testing
+pytest>=8.4.1
+pytest-cov>=4.0.0
+
+# Code quality
+black>=25.1.0
+flake8>=7.3.0
+mypy>=1.17.1
+
+# Jupyter support (optional)
+jupyter>=1.1.1
+ipython>=8.0.0
+
+# Configuration management
+python-dotenv>=1.1.1
+
+# Logging
+loguru>=0.7.3
+
+# HTTP requests for health checks
+requests>=2.32.4
+
+# Kubernetes support for Airflow
+apache-airflow-providers-cncf-kubernetes>=8.0.0
+kubernetes>=28.0.0

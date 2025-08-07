@@ -1,0 +1,56 @@
+# Use Python 3.11 slim image as base
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV SPARK_HOME=/opt/spark
+ENV JAVA_HOME=/usr/local/openjdk-17
+ENV PATH=$PATH:$SPARK_HOME/bin:$JAVA_HOME/bin
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    openjdk-17-jdk \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install Apache Spark 4.0.0
+RUN wget -q https://archive.apache.org/dist/spark/spark-4.0.0/spark-4.0.0-bin-hadoop3.tgz \
+    && tar -xzf spark-4.0.0-bin-hadoop3.tgz \
+    && mv spark-4.0.0-bin-hadoop3 /opt/spark \
+    && rm spark-4.0.0-bin-hadoop3.tgz
+
+# Download Iceberg and Glue JARs
+RUN mkdir -p /opt/spark/jars/iceberg \
+    && cd /opt/spark/jars/iceberg \
+    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.4.2/iceberg-spark-runtime-3.5_2.12-1.4.2.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/1.4.2/iceberg-aws-bundle-1.4.2.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-hive-runtime/1.4.2/iceberg-hive-runtime-1.4.2.jar \
+    && cp *.jar /opt/spark/jars/
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install MinIO client for S3 compatibility
+RUN wget -q https://dl.min.io/client/mc/release/linux-amd64/mc \
+    && chmod +x mc \
+    && mv mc /usr/local/bin/
+
+# Copy application code
+COPY . .
+
+# Create directories for Spark logs and temp files
+RUN mkdir -p /tmp/spark-events /tmp/spark-logs
+
+# Expose port for Spark UI (optional)
+EXPOSE 4040
+
+# Default command
+CMD ["python", "main.py"]

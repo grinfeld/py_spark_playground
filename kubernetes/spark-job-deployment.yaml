@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-job-deployment
+  namespace: default
+  labels:
+    app: spark-job
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-job
+  template:
+    metadata:
+      labels:
+        app: spark-job
+    spec:
+      containers:
+      - name: spark-job
+        image: your-registry/py-spark:latest
+        imagePullPolicy: Always
+        env:
+        - name: STORAGE_BUCKET
+          value: "spark-data"
+        - name: CATALOG_TYPE
+          value: "hadoop"
+        - name: CATALOG_NAME
+          value: "spark_catalog"
+        - name: CATALOG_WAREHOUSE_NAME
+          value: "iceberg-warehouse"
+        - name: STORAGE_ENDPOINT
+          value: "http://minio-service:9000"
+        - name: STORAGE_ACCESS_KEY_ID
+          value: "minioadmin"
+        - name: STORAGE_SECRET_KEY
+          value: "minioadmin"
+        - name: STORAGE_PATH_STYLE_ACCESS
+          value: "true"
+        - name: CATALOG_IO_IMPL
+          value: "org.apache.iceberg.aws.s3.S3FileIO"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        command: ["python"]
+        args: ["-c", "import sys; from utils import add_project_root_to_path; add_project_root_to_path(); from spark_job import run_spark_job; print(run_spark_job())"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-job-service
+  namespace: default
+spec:
+  selector:
+    app: spark-job
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP

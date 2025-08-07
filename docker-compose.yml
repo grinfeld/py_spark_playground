@@ -1,0 +1,142 @@
+version: '3.8'
+
+services:
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"      # API port
+      - "9001:9001"      # Console port
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - spark-network
+
+  # MinIO Client for setup
+  minio-client:
+    image: minio/mc:latest
+    container_name: minio-client
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: >
+      sh -c "
+        sleep 10 &&
+        mc alias set myminio http://minio:9000 minioadmin minioadmin &&
+        mc mb myminio/spark-data &&
+        mc mb myminio/spark-output &&
+        mc policy set public myminio/spark-data &&
+        mc policy set public myminio/spark-output &&
+        echo 'MinIO setup completed'
+      "
+    networks:
+      - spark-network
+
+  # PySpark Application
+  pyspark-app:
+    build: .
+    container_name: pyspark-app
+    depends_on:
+      minio:
+        condition: service_healthy
+      minio-client:
+        condition: service_completed_successfully
+      hive-metastore:
+        condition: service_started
+    environment:
+      # Storage Configuration
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+      - STORAGE_ACCESS_KEY_ID=${STORAGE_ACCESS_KEY_ID}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_CREDENTIALS_PROVIDER=${STORAGE_CREDENTIALS_PROVIDER}
+      - STORAGE_PATH_STYLE_ACCESS=${STORAGE_PATH_STYLE_ACCESS}
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
+      - AWS_REGION=${AWS_REGION}
+      - GLUE_CATALOG_NAME=${GLUE_CATALOG_NAME}
+      # Spark Configuration
+      - SPARK_MASTER=${SPARK_MASTER:-local[*]}
+      - SPARK_DRIVER_MEMORY=${SPARK_DRIVER_MEMORY:-1g}
+      - SPARK_EXECUTOR_MEMORY=${SPARK_EXECUTOR_MEMORY:-1g}
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/tmp/spark-logs
+    ports:
+      - "4040:4040"  # Spark UI
+    networks:
+      - spark-network
+    restart: unless-stopped
+
+  # Hive Metastore for Iceberg
+  hive-metastore:
+    image: apache/hive:3.1.3
+    container_name: hive-metastore
+    depends_on:
+      - minio
+    environment:
+      - SERVICE_NAME=metastore
+      - DB_DRIVER=derby
+      - DB_DRIVER_CLASS=org.apache.derby.jdbc.EmbeddedDriver
+      - DB_DRIVER_URL=jdbc:derby:memory:metastore_db;create=true
+      - DB_USERNAME=APP
+      - DB_PASSWORD=mine
+    ports:
+      - "9083:9083"
+    volumes:
+      - hive_metastore_db:/opt/hive/data
+    networks:
+      - spark-network
+    command: ["/opt/hive/bin/hive", "--service", "metastore"]
+
+  # Jupyter Notebook (optional)
+  jupyter:
+    build: .
+    container_name: jupyter-notebook
+    depends_on:
+      - minio
+      - hive-metastore
+    environment:
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+      - STORAGE_BUCKET=spark-data
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/app/notebooks
+      - ./data:/app/data:ro
+    command: >
+      sh -c "
+        jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
+      "
+    networks:
+      - spark-network
+    profiles:
+      - jupyter
+
+volumes:
+  minio_data:
+    driver: local
+  spark_logs:
+    driver: local
+  hive_metastore_db:
+    driver: local
+
+networks:
+  spark-network:
+    driver: bridge
