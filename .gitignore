@@ -157,6 +157,7 @@ cython_debug/
 #  be added to the global gitignore or merged into this project gitignore.  For a PyCharm
 #  project, use 'File | Settings | File Templates'.
 .idea/
+*.iml
 
 # VS Code
 .vscode/
