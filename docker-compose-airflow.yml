@@ -8,6 +8,7 @@ services:
       dockerfile: Dockerfile.airflow
     depends_on:
       - airflow-init
+    command: webserver
     environment:
       &airflow-common-env
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -51,6 +52,7 @@ services:
       dockerfile: Dockerfile.airflow
     depends_on:
       - airflow-init
+    command: scheduler
     environment:
       <<: *airflow-common-env
       # Spark job configuration
@@ -78,6 +80,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.airflow
+    depends_on:
+      - postgres
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_UPGRADE: 'true'
@@ -91,7 +95,17 @@ services:
       - ./plugins:/opt/airflow/plugins
       - ./data:/opt/airflow/data
       - ./requirements.txt:/opt/airflow/requirements.txt
-    command: version
+    command: >
+      bash -c "
+        airflow db migrate && \
+        airflow users create \
+          --role Admin \
+          --username ${_AIRFLOW_WWW_USER_USERNAME:-admin} \
+          --password ${_AIRFLOW_WWW_USER_PASSWORD:-admin} \
+          --email admin@example.com \
+          --firstname Admin \
+          --lastname User || true
+      "
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
       interval: 10s
@@ -115,6 +129,8 @@ services:
       interval: 5s
       retries: 5
     restart: always
+    networks:
+      - spark-network
 
   # MinIO for local S3-compatible storage
   minio:

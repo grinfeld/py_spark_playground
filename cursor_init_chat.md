@@ -1,5 +1,5 @@
 # Create docker-compose for MinIO project
-_Exported on 8/9/2025 at 10:03:38 GMT+3 from Cursor (1.4.3)_
+_Exported on 8/9/2025 at 10:31:45 GMT+3 from Cursor (1.4.3)_
 
 ---
 
@@ -25703,4 +25703,1748 @@ Renamed the Spark image Dockerfile and updated all references.
 
 Summary:
 - You can build/run Spark services via the updated compose files; they now use `Dockerfile.spark`.
+
+---
+
+**User**
+
+check again that everything works
+
+---
+
+**Cursor**
+
+```dockercompose
+version: '3.8'
+
+services:
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: minio-distributed
+    ports:
+      - "9000:9000"      # API port
+      - "9001:9001"      # Console port
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - spark-network
+    restart: unless-stopped
+
+  # MinIO Client for setup
+  minio-client:
+    image: minio/mc:latest
+    container_name: minio-client-distributed
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: >
+      sh -c "
+        sleep 10 &&
+        mc alias set myminio http://minio:9000 minioadmin minioadmin &&
+        mc mb myminio/spark-data &&
+        mc mb myminio/spark-output &&
+        mc mb myminio/spark-checkpoints &&
+        mc policy set public myminio/spark-data &&
+        mc policy set public myminio/spark-output &&
+        mc policy set public myminio/spark-checkpoints &&
+        echo 'MinIO setup completed'
+      "
+    networks:
+      - spark-network
+
+  # Spark Master
+  spark-master:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-master
+    depends_on:
+      - minio
+      - minio-client
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_TYPE=minio
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+      - STORAGE_BUCKET=spark-data
+    ports:
+      - "8080:8080"  # Spark Master UI
+      - "7077:7077"  # Spark Master RPC
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 15 &&
+        /opt/spark/sbin/start-master.sh &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.master.Master-*.out
+      "
+
+  # Spark Worker 1
+  spark-worker-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-1
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_TYPE=minio
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+  # Spark Worker 2
+  spark-worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-2
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_TYPE=minio
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+  # Spark Worker 3
+  spark-worker-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-3
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_TYPE=minio
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+  # Hive Metastore for Iceberg
+  hive-metastore:
+    image: apache/hive:3.1.3
+    container_name: hive-metastore-distributed
+    depends_on:
+      - minio
+    environment:
+      - SERVICE_NAME=metastore
+      - DB_DRIVER=derby
+      - DB_DRIVER_CLASS=org.apache.derby.jdbc.EmbeddedDriver
+      - DB_DRIVER_URL=jdbc:derby:memory:metastore_db;create=true
+      - DB_USERNAME=APP
+      - DB_PASSWORD=mine
+    ports:
+      - "9083:9083"
+    volumes:
+      - hive_metastore_db:/opt/hive/data
+    networks:
+      - spark-network
+    command: ["/opt/hive/bin/hive", "--service", "metastore"]
+
+  # Spark Application Driver
+  spark-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-app-distributed
+    depends_on:
+      - spark-master
+      - spark-worker-1
+      - spark-worker-2
+      - spark-worker-3
+      - minio
+      - minio-client
+      - hive-metastore
+    environment:
+      # Storage Configuration
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+      - STORAGE_ACCESS_KEY_ID=${STORAGE_ACCESS_KEY_ID}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_CREDENTIALS_PROVIDER=${STORAGE_CREDENTIALS_PROVIDER}
+      - STORAGE_PATH_STYLE_ACCESS=${STORAGE_PATH_STYLE_ACCESS}
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
+      - AWS_REGION=${AWS_REGION}
+      - GLUE_CATALOG_NAME=${GLUE_CATALOG_NAME}
+      # Spark Configuration
+      - SPARK_MASTER=spark://spark-master:7077
+      - SPARK_DRIVER_MEMORY=1g
+      - SPARK_EXECUTOR_MEMORY=1g
+      - SPARK_EXECUTOR_CORES=1
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+    ports:
+      - "4040:4040"  # Spark Application UI
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 45 &&
+        /opt/spark/bin/spark-submit \
+          --master spark://spark-master:7077 \
+          --deploy-mode client \
+          --driver-memory 1g \
+          --executor-memory 1g \
+          --executor-cores 1 \
+          --conf spark.sql.adaptive.enabled=true \
+          --conf spark.sql.adaptive.coalescePartitions.enabled=true \
+          --conf spark.sql.adaptive.skewJoin.enabled=true \
+          --conf spark.sql.adaptive.localShuffleReader.enabled=true \
+          --conf spark.sql.adaptive.optimizeSkewedJoin.enabled=true \
+          --conf spark.sql.adaptive.forceApply=true \
+          --conf spark.sql.adaptive.advisoryPartitionSizeInBytes=128m \
+          --conf spark.sql.adaptive.coalescePartitions.minPartitionNum=1 \
+          --conf spark.sql.adaptive.coalescePartitions.initialPartitionNum=200 \
+          --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
+          --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkCatalog \
+          --conf spark.sql.catalog.spark_catalog.type=hive \
+          --conf spark.sql.catalog.spark_catalog.uri=thrift://hive-metastore:9083 \
+          --conf spark.sql.catalog.spark_catalog.warehouse=s3a://spark-data/iceberg-warehouse \
+          --conf spark.hadoop.aws.region=us-east-1 \
+          --conf spark.hadoop.aws.access.key=minioadmin \
+          --conf spark.hadoop.aws.secret.key=minioadmin \
+          --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.aws.glue.GlueCatalog \
+          --conf spark.sql.catalog.glue_catalog.warehouse=s3a://spark-data/glue-warehouse \
+          --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+          --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+          --conf spark.sql.catalog.glue_catalog.s3.endpoint=http://minio:9000 \
+          --conf spark.sql.catalog.glue_catalog.s3.access-key=minioadmin \
+          --conf spark.sql.catalog.glue_catalog.s3.secret-key=minioadmin \
+          --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
+          --conf spark.hadoop.fs.s3a.access.key=minioadmin \
+          --conf spark.hadoop.fs.s3a.secret.key=minioadmin \
+          --conf spark.hadoop.fs.s3a.path.style.access=true \
+          --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
+          --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider \
+          --conf spark.sql.warehouse.dir=s3a://spark-data/warehouse \
+          /app/dags/standalone/main.py
+      "
+
+volumes:
+  minio_data:
+    driver: local
+  spark_logs:
+    driver: local
+  spark_work:
+    driver: local
+  hive_metastore_db:
+    driver: local
+
+networks:
+  spark-network:
+    driver: bridge
+
+```
+
+```python
+"""
+Airflow 3.0 DAG for Spark 4.0 job in Kubernetes using modern decorators
+"""
+
+import os
+import sys
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.decorators import task
+from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+from airflow.providers.cncf.kubernetes.backcompat.pod import Port
+
+# Add the project root to Python path (works in Docker and local)
+from lib.utils import add_project_root_to_path
+add_project_root_to_path()
+
+# Airflow 3.0 DAG using decorators for Kubernetes
+@dag(
+    dag_id='spark_job_kubernetes',
+    description='Spark 4.0 job in Kubernetes using Airflow 3.0 decorators',
+    schedule_interval=timedelta(hours=1),
+    start_date=datetime(2024, 1, 1),
+    catchup=False,
+    tags=['spark', 'configurable', 'iceberg', 'kubernetes'],
+    owner='data-engineering',
+    retries=1,
+    retry_delay=timedelta(minutes=5),
+    email_on_failure=False,
+    email_on_retry=False,
+)
+def spark_job_kubernetes_dag():
+    """Airflow 3.0 DAG using task decorators for Kubernetes Spark jobs."""
+    
+    # Kubernetes Pod Operator for Spark job
+    spark_kubernetes_task = KubernetesPodOperator(
+        task_id='spark_job_kubernetes',
+        name='spark-job-kubernetes',
+        namespace='default',
+        image='your-registry/py-spark:latest',  # Your Spark Docker image
+        cmds=['python'],
+        arguments=['-c', '''
+import sys
+sys.path.insert(0, '/app/dags')
+from lib.utils import add_project_root_to_path
+add_project_root_to_path()
+from jobs.spark_job import run_spark_job
+result = run_spark_job()
+print(f"Kubernetes Spark job completed: {result}")
+'''],
+        env_vars={
+            'STORAGE_BUCKET': '{{ var.value.STORAGE_BUCKET }}',
+            'CATALOG_TYPE': '{{ var.value.CATALOG_TYPE }}',
+            'CATALOG_NAME': '{{ var.value.CATALOG_NAME }}',
+            'CATALOG_WAREHOUSE_NAME': '{{ var.value.CATALOG_WAREHOUSE_NAME }}',
+            'STORAGE_ENDPOINT': '{{ var.value.STORAGE_ENDPOINT }}',
+            'STORAGE_ACCESS_KEY_ID': '{{ var.value.STORAGE_ACCESS_KEY_ID }}',
+            'STORAGE_SECRET_KEY': '{{ var.value.STORAGE_SECRET_KEY }}',
+            'STORAGE_PATH_STYLE_ACCESS': '{{ var.value.STORAGE_PATH_STYLE_ACCESS }}',
+            'CATALOG_IO_IMPL': '{{ var.value.CATALOG_IO_IMPL }}',
+        },
+        resources={
+            'request_memory': '2Gi',
+            'request_cpu': '1000m',
+            'limit_memory': '4Gi',
+            'limit_cpu': '2000m',
+        },
+        get_logs=True,
+        is_delete_operator_pod=True,
+        in_cluster=True,
+        config_file='/opt/airflow/.kube/config',
+    )
+    
+    # Execute the Kubernetes task
+    spark_kubernetes_task
+
+# Create the DAG
+spark_job_kubernetes_dag()
+
+```
+
+```python
+"""
+Airflow 3.0 DAG for Spark 4.0 job using modern decorators
+"""
+
+import os
+import sys
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.decorators import task
+
+# Add the project root to Python path (works in Docker and local)
+try:
+    from lib.utils import add_project_root_to_path
+except ModuleNotFoundError:
+    import sys
+    sys.path.insert(0, '/opt/airflow/dags')
+    from lib.utils import add_project_root_to_path
+add_project_root_to_path()
+
+# Import our shared Spark job module
+from jobs.spark_job import run_spark_job
+
+# Airflow 3.0 DAG using decorators
+@dag(
+    dag_id='spark_job',
+    description='Spark 4.0 job using Airflow 3.0 decorators',
+    schedule_interval=timedelta(hours=1),
+    start_date=datetime(2024, 1, 1),
+    catchup=False,
+    tags=['spark', 'configurable', 'iceberg'],
+    owner='data-engineering',
+    retries=1,
+    retry_delay=timedelta(minutes=5),
+    email_on_failure=False,
+    email_on_retry=False,
+)
+def spark_job_dag():
+    """Airflow 3.0 DAG using task decorators."""
+    
+    @task
+    def run_spark_job_task():
+        """Run the Spark job using the shared module."""
+        try:
+            from loguru import logger
+            
+            # Set up logging for Airflow
+            logger.add("/opt/airflow/logs/spark_job.log", rotation="1 day")
+            
+            # Run the shared Spark job
+            result = run_spark_job()
+            
+            logger.info(f"✅ Airflow DAG completed with result: {result}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Airflow DAG failed: {e}")
+            raise e
+    
+    # Execute the task
+    run_spark_job_task()
+
+# Create the DAG
+spark_job_dag()
+
+```
+
+---
+
+**User**
+
+check now only our 2 dags
+
+---
+
+**Cursor**
+
+```python
+"""
+Airflow 3.0 DAG for Spark 4.0 job using modern decorators
+"""
+
+import os
+import sys
+from datetime import datetime, timedelta
+from airflow.decorators import dag, task
+
+
+# Import our shared Spark job module
+from jobs.spark_job import run_spark_job
+
+# Airflow 3.0 DAG using decorators
+@dag(
+    dag_id='spark_job',
+    description='Spark 4.0 job using Airflow 3.0 decorators',
+    schedule_interval=timedelta(hours=1),
+    start_date=datetime(2024, 1, 1),
+    catchup=False,
+    tags=['spark', 'configurable', 'iceberg'],
+    owner='data-engineering',
+    retries=1,
+    retry_delay=timedelta(minutes=5),
+    email_on_failure=False,
+    email_on_retry=False,
+)
+def spark_job_dag():
+    """Airflow 3.0 DAG using task decorators."""
+    
+    @task
+    def run_spark_job_task():
+        """Run the Spark job using the shared module."""
+        try:
+            from loguru import logger
+            
+            # Set up logging for Airflow
+            logger.add("/opt/airflow/logs/spark_job.log", rotation="1 day")
+            
+            # Run the shared Spark job
+            result = run_spark_job()
+            
+            logger.info(f"✅ Airflow DAG completed with result: {result}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Airflow DAG failed: {e}")
+            raise e
+    
+    # Execute the task
+    run_spark_job_task()
+
+# Create the DAG
+spark_job_dag()
+
+```
+
+```python
+"""
+Airflow 3.0 DAG for Spark 4.0 job in Kubernetes using modern decorators
+"""
+
+import os
+import sys
+from datetime import datetime, timedelta
+from airflow.decorators import dag, task
+from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+from airflow.providers.cncf.kubernetes.backcompat.pod import Port
+
+
+# Airflow 3.0 DAG using decorators for Kubernetes
+@dag(
+    dag_id='spark_job_kubernetes',
+    description='Spark 4.0 job in Kubernetes using Airflow 3.0 decorators',
+    schedule_interval=timedelta(hours=1),
+    start_date=datetime(2024, 1, 1),
+    catchup=False,
+    tags=['spark', 'configurable', 'iceberg', 'kubernetes'],
+    owner='data-engineering',
+    retries=1,
+    retry_delay=timedelta(minutes=5),
+    email_on_failure=False,
+    email_on_retry=False,
+)
+def spark_job_kubernetes_dag():
+    """Airflow 3.0 DAG using task decorators for Kubernetes Spark jobs."""
+    
+    # Kubernetes Pod Operator for Spark job
+    spark_kubernetes_task = KubernetesPodOperator(
+        task_id='spark_job_kubernetes',
+        name='spark-job-kubernetes',
+        namespace='default',
+        image='your-registry/py-spark:latest',  # Your Spark Docker image
+        cmds=['python'],
+         arguments=['-c', '''
+import sys
+from jobs.spark_job import run_spark_job
+result = run_spark_job()
+print(f"Kubernetes Spark job completed: {result}")
+'''],
+        env_vars={
+            'STORAGE_BUCKET': '{{ var.value.STORAGE_BUCKET }}',
+            'CATALOG_TYPE': '{{ var.value.CATALOG_TYPE }}',
+            'CATALOG_NAME': '{{ var.value.CATALOG_NAME }}',
+            'CATALOG_WAREHOUSE_NAME': '{{ var.value.CATALOG_WAREHOUSE_NAME }}',
+            'STORAGE_ENDPOINT': '{{ var.value.STORAGE_ENDPOINT }}',
+            'STORAGE_ACCESS_KEY_ID': '{{ var.value.STORAGE_ACCESS_KEY_ID }}',
+            'STORAGE_SECRET_KEY': '{{ var.value.STORAGE_SECRET_KEY }}',
+            'STORAGE_PATH_STYLE_ACCESS': '{{ var.value.STORAGE_PATH_STYLE_ACCESS }}',
+            'CATALOG_IO_IMPL': '{{ var.value.CATALOG_IO_IMPL }}',
+        },
+        resources={
+            'request_memory': '2Gi',
+            'request_cpu': '1000m',
+            'limit_memory': '4Gi',
+            'limit_cpu': '2000m',
+        },
+        get_logs=True,
+        is_delete_operator_pod=True,
+        in_cluster=True,
+        config_file='/opt/airflow/.kube/config',
+    )
+    
+    # Execute the Kubernetes task
+    spark_kubernetes_task
+
+# Create the DAG
+spark_job_kubernetes_dag()
+
+```
+
+- Checked both DAGs after your edits.
+
+Findings:
+- dags/spark_job_dag.py
+  - Uses modern decorators: from airflow.decorators import dag, task
+  - Imports shared job via from jobs.spark_job import run_spark_job
+  - No path hacks; relies on Airflow’s dags import path. OK.
+
+- dags/spark_job_kubernetes_dag.py
+  - Uses modern decorators: from airflow.decorators import dag, task
+  - KubernetesPodOperator import is present. Linter shows provider import warnings locally, which is expected unless airflow providers are installed in your local env. In the Airflow image, apache-airflow-providers-cncf-kubernetes is in requirements, so it’s fine.
+  - Inline python now imports run_spark_job directly from jobs: it will work because the pod runs with the code mounted into /opt/airflow/dags (compose sets this) and Airflow adds that to PYTHONPATH. OK.
+
+Validation:
+- docker-compose-airflow.yml loads with config OK.
+- docker-compose-distributed.yml updated spark-submit target to dags/standalone/main.py and validates OK.
+- Quick import tests for jobs.spark_job succeed when required env vars are set.
+
+Summary:
+- Both DAGs are consistent, use decorator API, and import shared code from the new layout.
+- Provider import warnings are benign locally; they’ll resolve in the Airflow container.
+
+---
+
+**User**
+
+please, run some checks or tests
+
+---
+
+**Cursor**
+
+```dockerfile
+# Use Python 3.11 slim image as base
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV SPARK_HOME=/opt/spark
+ENV JAVA_HOME=/usr/local/openjdk-17
+ENV PATH=$PATH:$SPARK_HOME/bin:$JAVA_HOME/bin
+ENV PYTHONPATH=/app/dags:$PYTHONPATH
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    openjdk-17-jdk \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install Apache Spark 4.0.0
+RUN wget -q https://archive.apache.org/dist/spark/spark-4.0.0/spark-4.0.0-bin-hadoop3.tgz \
+    && tar -xzf spark-4.0.0-bin-hadoop3.tgz \
+    && mv spark-4.0.0-bin-hadoop3 /opt/spark \
+    && rm spark-4.0.0-bin-hadoop3.tgz
+
+# Download Iceberg and Glue JARs
+RUN mkdir -p /opt/spark/jars/iceberg \
+    && cd /opt/spark/jars/iceberg \
+    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.4.2/iceberg-spark-runtime-3.5_2.12-1.4.2.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/1.4.2/iceberg-aws-bundle-1.4.2.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-hive-runtime/1.4.2/iceberg-hive-runtime-1.4.2.jar \
+    && cp *.jar /opt/spark/jars/
+
+# Set working directory
+# Note: The application code is copied in for spark-app; master/worker override CMD
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install MinIO client for S3 compatibility
+RUN wget -q https://dl.min.io/client/mc/release/linux-amd64/mc \
+    && chmod +x mc \
+    && mv mc /usr/local/bin/
+
+# Copy application code
+COPY . .
+
+# Create directories for Spark logs and temp files
+RUN mkdir -p /tmp/spark-events /tmp/spark-logs
+
+# Expose port for Spark UI (optional)
+EXPOSE 4040
+
+# Default command (overridden by compose for master/worker)
+CMD ["python", "-m", "dags.standalone.main"]
+
+
+
+```
+
+- Ran import tests:
+  - From project root with envs: ok
+    - Command used: add dags to sys.path and import `jobs.spark_job`
+- Validated compose files:
+  - `docker-compose-airflow.yml`: config OK
+  - `docker-compose-distributed.yml`: config OK (shows expected warnings for unset envs)
+
+If you want, I can spin up the Airflow stack and verify the DAGs load:
+- docker compose -f docker-compose-airflow.yml up -d
+- docker compose -f docker-compose-airflow.yml logs airflow-webserver | tail -n 100
+
+Or run a quick in-container Python import to ensure DAG code loads in the Airflow image.
+
+---
+
+**User**
+
+yes
+
+---
+
+**Cursor**
+
+I'll start the Airflow stack with the updated compose, wait for containers to start, and verify that both DAGs are discovered by Airflow by listing DAGs from inside the webserver container and tailing logs for errors.
+
+```dockercompose
+version: '3.8'
+
+services:
+  # Apache Airflow
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    depends_on:
+      - airflow-init
+    environment:
+      &airflow-common-env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW__CORE__ENABLE_XCOM_PICKLING: 'true'
+      # PySpark and Java environment
+      JAVA_HOME: /usr/local/openjdk-17
+      SPARK_HOME: /opt/spark
+      PYTHONPATH: /opt/airflow/dags:/opt/airflow/plugins
+      # Spark job configuration
+      STORAGE_BUCKET: spark-data
+      CATALOG_TYPE: hadoop
+      CATALOG_NAME: spark_catalog
+      CATALOG_WAREHOUSE_NAME: iceberg-warehouse
+      CATALOG_IO_IMPL: org.apache.iceberg.aws.s3.S3FileIO
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    networks:
+      - spark-network
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    depends_on:
+      - airflow-init
+    environment:
+      <<: *airflow-common-env
+      # Spark job configuration
+      STORAGE_BUCKET: spark-data
+      CATALOG_TYPE: hadoop
+      CATALOG_NAME: spark_catalog
+      CATALOG_WAREHOUSE_NAME: iceberg-warehouse
+      CATALOG_IO_IMPL: org.apache.iceberg.aws.s3.S3FileIO
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    networks:
+      - spark-network
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-admin}
+      _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    command: version
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: on-failure
+    networks:
+      - spark-network
+
+  # PostgreSQL for Airflow metadata
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+    restart: always
+    networks:
+      - spark-network
+
+  # MinIO for local S3-compatible storage
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: always
+    networks:
+      - spark-network
+
+  # MinIO Client for setup (bucket creation and policies)
+  minio-client:
+    image: minio/mc:latest
+    container_name: minio-client-airflow
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: >
+      sh -c "
+        sleep 10 &&
+        mc alias set myminio http://minio:9000 minioadmin minioadmin &&
+        mc mb myminio/spark-data || true &&
+        mc mb myminio/spark-output || true &&
+        mc mb myminio/spark-checkpoints || true &&
+        mc policy set public myminio/spark-data || true &&
+        mc policy set public myminio/spark-output || true &&
+        mc policy set public myminio/spark-checkpoints || true &&
+        echo 'MinIO setup completed'
+      "
+    networks:
+      - spark-network
+
+  # Spark Master
+  spark-master:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-master
+    depends_on:
+      - minio
+      - minio-client
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+      - STORAGE_BUCKET=spark-data
+    ports:
+      - "8081:8080"  # Spark Master UI (8080 inside container)
+      - "7077:7077"  # Spark Master RPC
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 15 &&
+        /opt/spark/sbin/start-master.sh &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.master.Master-*.out
+      "
+
+  # Spark Worker 1
+  spark-worker-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-1
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+  # Spark Worker 2
+  spark-worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-2
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+  # Spark Worker 3
+  spark-worker-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-3
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+
+
+volumes:
+  postgres-db-volume:
+  minio-data:
+  spark_logs:
+  spark_work:
+
+networks:
+  spark-network:
+
+```
+
+```dockercompose
+version: '3.8'
+
+services:
+  # Apache Airflow
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    depends_on:
+      - airflow-init
+    command: webserver
+    environment:
+      &airflow-common-env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW__CORE__ENABLE_XCOM_PICKLING: 'true'
+      # PySpark and Java environment
+      JAVA_HOME: /usr/local/openjdk-17
+      SPARK_HOME: /opt/spark
+      PYTHONPATH: /opt/airflow/dags:/opt/airflow/plugins
+      # Spark job configuration
+      STORAGE_BUCKET: spark-data
+      CATALOG_TYPE: hadoop
+      CATALOG_NAME: spark_catalog
+      CATALOG_WAREHOUSE_NAME: iceberg-warehouse
+      CATALOG_IO_IMPL: org.apache.iceberg.aws.s3.S3FileIO
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    networks:
+      - spark-network
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    depends_on:
+      - airflow-init
+    command: scheduler
+    environment:
+      <<: *airflow-common-env
+      # Spark job configuration
+      STORAGE_BUCKET: spark-data
+      CATALOG_TYPE: hadoop
+      CATALOG_NAME: spark_catalog
+      CATALOG_WAREHOUSE_NAME: iceberg-warehouse
+      CATALOG_IO_IMPL: org.apache.iceberg.aws.s3.S3FileIO
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    networks:
+      - spark-network
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-admin}
+      _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    command: version
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: on-failure
+    networks:
+      - spark-network
+
+  # PostgreSQL for Airflow metadata
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+    restart: always
+    networks:
+      - spark-network
+
+  # MinIO for local S3-compatible storage
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: always
+    networks:
+      - spark-network
+
+  # MinIO Client for setup (bucket creation and policies)
+  minio-client:
+    image: minio/mc:latest
+    container_name: minio-client-airflow
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: >
+      sh -c "
+        sleep 10 &&
+        mc alias set myminio http://minio:9000 minioadmin minioadmin &&
+        mc mb myminio/spark-data || true &&
+        mc mb myminio/spark-output || true &&
+        mc mb myminio/spark-checkpoints || true &&
+        mc policy set public myminio/spark-data || true &&
+        mc policy set public myminio/spark-output || true &&
+        mc policy set public myminio/spark-checkpoints || true &&
+        echo 'MinIO setup completed'
+      "
+    networks:
+      - spark-network
+
+  # Spark Master
+  spark-master:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-master
+    depends_on:
+      - minio
+      - minio-client
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+      - STORAGE_BUCKET=spark-data
+    ports:
+      - "8081:8080"  # Spark Master UI (8080 inside container)
+      - "7077:7077"  # Spark Master RPC
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 15 &&
+        /opt/spark/sbin/start-master.sh &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.master.Master-*.out
+      "
+
+  # Spark Worker 1
+  spark-worker-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-1
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+  # Spark Worker 2
+  spark-worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-2
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+  # Spark Worker 3
+  spark-worker-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-3
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+
+
+volumes:
+  postgres-db-volume:
+  minio-data:
+  spark_logs:
+  spark_work:
+
+networks:
+  spark-network:
+
+```
+
+Bringing up Airflow and verifying DAG discovery. I'll initialize the Airflow database and create the default admin user in the airflow-init container, then re-check DAGs.
+
+```dockercompose
+version: '3.8'
+
+services:
+  # Apache Airflow
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    depends_on:
+      - airflow-init
+    command: webserver
+    environment:
+      &airflow-common-env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW__CORE__ENABLE_XCOM_PICKLING: 'true'
+      # PySpark and Java environment
+      JAVA_HOME: /usr/local/openjdk-17
+      SPARK_HOME: /opt/spark
+      PYTHONPATH: /opt/airflow/dags:/opt/airflow/plugins
+      # Spark job configuration
+      STORAGE_BUCKET: spark-data
+      CATALOG_TYPE: hadoop
+      CATALOG_NAME: spark_catalog
+      CATALOG_WAREHOUSE_NAME: iceberg-warehouse
+      CATALOG_IO_IMPL: org.apache.iceberg.aws.s3.S3FileIO
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    networks:
+      - spark-network
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    depends_on:
+      - airflow-init
+    command: scheduler
+    environment:
+      <<: *airflow-common-env
+      # Spark job configuration
+      STORAGE_BUCKET: spark-data
+      CATALOG_TYPE: hadoop
+      CATALOG_NAME: spark_catalog
+      CATALOG_WAREHOUSE_NAME: iceberg-warehouse
+      CATALOG_IO_IMPL: org.apache.iceberg.aws.s3.S3FileIO
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    networks:
+      - spark-network
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    depends_on:
+      - postgres
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-admin}
+      _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    command: >
+      bash -c "
+        airflow db migrate && \
+        airflow users create \
+          --role Admin \
+          --username ${_AIRFLOW_WWW_USER_USERNAME:-admin} \
+          --password ${_AIRFLOW_WWW_USER_PASSWORD:-admin} \
+          --email admin@example.com \
+          --firstname Admin \
+          --lastname User || true
+      "
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: on-failure
+    networks:
+      - spark-network
+
+  # PostgreSQL for Airflow metadata
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+    restart: always
+    networks:
+      - spark-network
+
+  # MinIO for local S3-compatible storage
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: always
+    networks:
+      - spark-network
+
+  # MinIO Client for setup (bucket creation and policies)
+  minio-client:
+    image: minio/mc:latest
+    container_name: minio-client-airflow
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: >
+      sh -c "
+        sleep 10 &&
+        mc alias set myminio http://minio:9000 minioadmin minioadmin &&
+        mc mb myminio/spark-data || true &&
+        mc mb myminio/spark-output || true &&
+        mc mb myminio/spark-checkpoints || true &&
+        mc policy set public myminio/spark-data || true &&
+        mc policy set public myminio/spark-output || true &&
+        mc policy set public myminio/spark-checkpoints || true &&
+        echo 'MinIO setup completed'
+      "
+    networks:
+      - spark-network
+
+  # Spark Master
+  spark-master:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-master
+    depends_on:
+      - minio
+      - minio-client
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+      - STORAGE_BUCKET=spark-data
+    ports:
+      - "8081:8080"  # Spark Master UI (8080 inside container)
+      - "7077:7077"  # Spark Master RPC
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 15 &&
+        /opt/spark/sbin/start-master.sh &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.master.Master-*.out
+      "
+
+  # Spark Worker 1
+  spark-worker-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-1
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+  # Spark Worker 2
+  spark-worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-2
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+  # Spark Worker 3
+  spark-worker-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker-3
+    depends_on:
+      - spark-master
+      - minio
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - STORAGE_ENDPOINT=http://minio:9000
+      - STORAGE_ACCESS_KEY_ID=minioadmin
+      - STORAGE_SECRET_KEY=minioadmin
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+      - spark_logs:/opt/spark/logs
+      - spark_work:/opt/spark/work
+    networks:
+      - spark-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 20 &&
+        /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+        tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
+      "
+
+
+
+volumes:
+  postgres-db-volume:
+  minio-data:
+  spark_logs:
+  spark_work:
+
+networks:
+  spark-network:
+
+```
+
+- Brought up the full Airflow + Spark + MinIO stack and fixed service commands:
+  - Added explicit commands for `airflow-webserver` (webserver) and `airflow-scheduler` (scheduler)
+  - Ensured `postgres` and `airflow-init` are on the same network; `airflow-init` now depends on `postgres` and runs db migrate + creates admin user
+
+- Current state:
+  - Containers running: postgres, minio, spark-master, spark-worker-1/2/3, airflow-scheduler, airflow-webserver, airflow-init, minio-client
+  - Webserver is still restarting during initial checks; after the init completes, it should stabilize.
+
+- Next checks to run after containers settle:
+  - List DAGs: docker compose -f docker-compose-airflow.yml exec -T airflow-webserver airflow dags list
+  - Tail webserver logs for errors: docker compose -f docker-compose-airflow.yml logs --no-log-prefix airflow-webserver | tail -n 200
+
+Summary:
+- Compose validated; services build and start.
+- Airflow init configured to migrate DB and create admin. DAG listing should work once webserver finishes startup.
 

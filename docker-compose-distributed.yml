@@ -295,7 +295,7 @@ services:
           --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
           --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider \
           --conf spark.sql.warehouse.dir=s3a://spark-data/warehouse \
-          /app/main.py
+          /app/dags/standalone/main.py
       "
 
 volumes:

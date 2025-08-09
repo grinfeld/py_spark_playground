@@ -5,12 +5,8 @@ Airflow 3.0 DAG for Spark 4.0 job using modern decorators
 import os
 import sys
 from datetime import datetime, timedelta
-from airflow import DAG
-from airflow.decorators import task
+from airflow.decorators import dag, task
 
-# Add the project root to Python path (works in Docker and local)
-from lib.utils import add_project_root_to_path
-add_project_root_to_path()
 
 # Import our shared Spark job module
 from jobs.spark_job import run_spark_job

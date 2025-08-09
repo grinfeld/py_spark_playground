@@ -5,14 +5,10 @@ Airflow 3.0 DAG for Spark 4.0 job in Kubernetes using modern decorators
 import os
 import sys
 from datetime import datetime, timedelta
-from airflow import DAG
-from airflow.decorators import task
+from airflow.decorators import dag, task
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from airflow.providers.cncf.kubernetes.backcompat.pod import Port
 
-# Add the project root to Python path (works in Docker and local)
-from lib.utils import add_project_root_to_path
-add_project_root_to_path()
 
 # Airflow 3.0 DAG using decorators for Kubernetes
 @dag(
@@ -40,8 +36,6 @@ def spark_job_kubernetes_dag():
         cmds=['python'],
          arguments=['-c', '''
 import sys
-from lib.utils import add_project_root_to_path
-add_project_root_to_path()
 from jobs.spark_job import run_spark_job
 result = run_spark_job()
 print(f"Kubernetes Spark job completed: {result}")

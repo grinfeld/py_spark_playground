@@ -7,6 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV SPARK_HOME=/opt/spark
 ENV JAVA_HOME=/usr/local/openjdk-17
 ENV PATH=$PATH:$SPARK_HOME/bin:$JAVA_HOME/bin
+ENV PYTHONPATH=/app/dags:$PYTHONPATH
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
