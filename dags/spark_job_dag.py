@@ -9,7 +9,7 @@ from airflow.decorators import dag, task
 
 
 # Import our shared Spark job module
-from jobs.spark_job import run_spark_job
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 
 # Airflow 3.0 DAG using decorators
 @dag(
@@ -28,27 +28,24 @@ from jobs.spark_job import run_spark_job
 def spark_job_dag():
     """Airflow 3.0 DAG using task decorators."""
     
-    @task
-    def run_spark_job_task():
-        """Run the Spark job using the shared module."""
-        try:
-            from loguru import logger
-            
-            # Set up logging for Airflow
-            logger.add("/opt/airflow/logs/spark_job.log", rotation="1 day")
-            
-            # Run the shared Spark job
-            result = run_spark_job()
-            
-            logger.info(f"✅ Airflow DAG completed with result: {result}")
-            return result
-            
-        except Exception as e:
-            logger.error(f"❌ Airflow DAG failed: {e}")
-            raise e
-    
-    # Execute the task
-    run_spark_job_task()
+    spark_submit = SparkSubmitOperator(
+        task_id='spark_job_submit',
+        application='/opt/airflow/dags/standalone/main.py',
+        name='spark_job',
+        master='spark://spark-master:7077',
+        deploy_mode='client',
+        conf={
+            'spark.sql.adaptive.enabled': 'true',
+            'spark.sql.extensions': 'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
+        },
+        env_vars={
+            'STORAGE_BUCKET': 'spark-data',
+            'CATALOG_TYPE': 'hadoop',
+            'CATALOG_WAREHOUSE_NAME': 'iceberg-warehouse',
+        },
+    )
+
+    spark_submit
 
 # Create the DAG
 spark_job_dag()

@@ -37,3 +37,9 @@ requests>=2.32.4
 # Kubernetes support for Airflow
 apache-airflow-providers-cncf-kubernetes>=8.0.0
 kubernetes>=28.0.0
+
+# Spark provider for Airflow (SparkSubmitOperator)
+apache-airflow-providers-apache-spark>=5.2.1
+
+# airflow command line
+apache-airflow-providers-fab>=2.0

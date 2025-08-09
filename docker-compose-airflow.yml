@@ -8,7 +8,9 @@ services:
       dockerfile: Dockerfile.airflow
     depends_on:
       - airflow-init
-    command: webserver
+    command: api-server
+    env_file:
+      - ./env.minio.example
     environment:
       &airflow-common-env
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -19,16 +21,15 @@ services:
       AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
       AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
       AIRFLOW__CORE__ENABLE_XCOM_PICKLING: 'true'
+      AIRFLOW__CORE__AUTH_MANAGER: "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager"
       # PySpark and Java environment
       JAVA_HOME: /usr/local/openjdk-17
       SPARK_HOME: /opt/spark
+      SPARK_MASTER_URL: spark://spark-master:7077
       PYTHONPATH: /opt/airflow/dags:/opt/airflow/plugins
-      # Spark job configuration
-      STORAGE_BUCKET: spark-data
-      CATALOG_TYPE: hadoop
-      CATALOG_NAME: spark_catalog
-      CATALOG_WAREHOUSE_NAME: iceberg-warehouse
-      CATALOG_IO_IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      # Spark job configuration (can be overridden by env_file)
+      CATALOG_NAME: ${CATALOG_NAME:-spark_catalog}
+      CATALOG_IO_IMPL: ${CATALOG_IO_IMPL:-org.apache.iceberg.aws.s3.S3FileIO}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -53,14 +54,14 @@ services:
     depends_on:
       - airflow-init
     command: scheduler
+    env_file:
+      - ./env.minio.example
     environment:
       <<: *airflow-common-env
-      # Spark job configuration
-      STORAGE_BUCKET: spark-data
-      CATALOG_TYPE: hadoop
-      CATALOG_NAME: spark_catalog
-      CATALOG_WAREHOUSE_NAME: iceberg-warehouse
-      CATALOG_IO_IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      SPARK_MASTER_URL: spark://spark-master:7077
+      # Spark job configuration (can be overridden by env_file)
+      CATALOG_NAME: ${CATALOG_NAME:-spark_catalog}
+      CATALOG_IO_IMPL: ${CATALOG_IO_IMPL:-org.apache.iceberg.aws.s3.S3FileIO}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -84,7 +85,7 @@ services:
       - postgres
     environment:
       <<: *airflow-common-env
-      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-admin}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-admin}
@@ -99,12 +100,12 @@ services:
       bash -c "
         airflow db migrate && \
         airflow users create \
-          --role Admin \
-          --username ${_AIRFLOW_WWW_USER_USERNAME:-admin} \
-          --password ${_AIRFLOW_WWW_USER_PASSWORD:-admin} \
-          --email admin@example.com \
-          --firstname Admin \
-          --lastname User || true
+                  --username admin \
+                  --firstname FIRST_NAME \
+                  --lastname LAST_NAME \
+                  --role Admin \
+                  --email admin@example.org \
+                  --password admin
       "
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
@@ -122,6 +123,8 @@ services:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
+    ports:
+      - "5432:5432"
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
@@ -138,6 +141,8 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
+    env_file:
+      - ./env.minio.example
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -159,6 +164,8 @@ services:
     container_name: minio-client-airflow
     depends_on:
       - minio
+    env_file:
+      - ./env.minio.example
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -186,16 +193,18 @@ services:
     depends_on:
       - minio
       - minio-client
+    env_file:
+      - ./env.minio.example
     environment:
       - SPARK_MODE=master
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
-      - STORAGE_ENDPOINT=http://minio:9000
-      - STORAGE_ACCESS_KEY_ID=minioadmin
-      - STORAGE_SECRET_KEY=minioadmin
-      - STORAGE_BUCKET=spark-data
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT:-http://minio:9000}
+      - STORAGE_ACCESS_KEY_ID=${STORAGE_ACCESS_KEY_ID:-minioadmin}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
+      - STORAGE_BUCKET=${STORAGE_BUCKET:-spark-data}
     ports:
       - "8081:8080"  # Spark Master UI (8080 inside container)
       - "7077:7077"  # Spark Master RPC
@@ -223,6 +232,8 @@ services:
     depends_on:
       - spark-master
       - minio
+    env_file:
+      - ./env.minio.example
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
@@ -232,9 +243,9 @@ services:
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
-      - STORAGE_ENDPOINT=http://minio:9000
-      - STORAGE_ACCESS_KEY_ID=minioadmin
-      - STORAGE_SECRET_KEY=minioadmin
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT:-http://minio:9000}
+      - STORAGE_ACCESS_KEY_ID=${STORAGE_ACCESS_KEY_ID:-minioadmin}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
     volumes:
       - ./data:/app/data:ro
       - ./output:/app/output
@@ -259,6 +270,8 @@ services:
     depends_on:
       - spark-master
       - minio
+    env_file:
+      - ./env.minio.example
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
@@ -268,9 +281,9 @@ services:
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
-      - STORAGE_ENDPOINT=http://minio:9000
-      - STORAGE_ACCESS_KEY_ID=minioadmin
-      - STORAGE_SECRET_KEY=minioadmin
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT:-http://minio:9000}
+      - STORAGE_ACCESS_KEY_ID=${STORAGE_ACCESS_KEY_ID:-minioadmin}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
     volumes:
       - ./data:/app/data:ro
       - ./output:/app/output
@@ -295,6 +308,8 @@ services:
     depends_on:
       - spark-master
       - minio
+    env_file:
+      - ./env.minio.example
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
@@ -304,9 +319,9 @@ services:
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
-      - STORAGE_ENDPOINT=http://minio:9000
-      - STORAGE_ACCESS_KEY_ID=minioadmin
-      - STORAGE_SECRET_KEY=minioadmin
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT:-http://minio:9000}
+      - STORAGE_ACCESS_KEY_ID=${STORAGE_ACCESS_KEY_ID:-minioadmin}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
     volumes:
       - ./data:/app/data:ro
       - ./output:/app/output

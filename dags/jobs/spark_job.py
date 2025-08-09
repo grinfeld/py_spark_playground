@@ -34,6 +34,11 @@ def create_spark_session(app_name: str = "SparkJob", catalog_name: Optional[str]
         .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
     )
 
+    # If SPARK_MASTER_URL is provided, connect to the standalone cluster
+    master_url = os.getenv("SPARK_MASTER_URL")
+    if master_url:
+        spark_builder = spark_builder.master(master_url)
+
     for key, value in config_manager.get_spark_configs().items():
         spark_builder = spark_builder.config(key, value)
 
