@@ -24,9 +24,6 @@ services:
       JAVA_HOME: /usr/local/openjdk-17
       SPARK_HOME: /opt/spark
       SPARK_MASTER_URL: spark://spark-master:7077
-      # Spark job configuration (can be overridden by env_file)
-      CATALOG_NAME: ${CATALOG_NAME:-spark_catalog}
-      CATALOG_IO_IMPL: ${CATALOG_IO_IMPL:-org.apache.iceberg.aws.s3.S3FileIO}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -56,9 +53,6 @@ services:
     environment:
       <<: *airflow-common-env
       SPARK_MASTER_URL: spark://spark-master:7077
-      # Spark job configuration (can be overridden by env_file)
-      CATALOG_NAME: ${CATALOG_NAME:-spark_catalog}
-      CATALOG_IO_IMPL: ${CATALOG_IO_IMPL:-org.apache.iceberg.aws.s3.S3FileIO}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -86,9 +80,6 @@ services:
     environment:
       <<: *airflow-common-env
       SPARK_MASTER_URL: spark://spark-master:7077
-      # Spark job configuration (can be overridden by env_file)
-      CATALOG_NAME: ${CATALOG_NAME:-spark_catalog}
-      CATALOG_IO_IMPL: ${CATALOG_IO_IMPL:-org.apache.iceberg.aws.s3.S3FileIO}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -111,9 +102,6 @@ services:
     environment:
       <<: *airflow-common-env
       SPARK_MASTER_URL: spark://spark-master:7077
-      # Spark job configuration (can be overridden by env_file)
-      CATALOG_NAME: ${CATALOG_NAME:-spark_catalog}
-      CATALOG_IO_IMPL: ${CATALOG_IO_IMPL:-org.apache.iceberg.aws.s3.S3FileIO}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -191,9 +179,6 @@ services:
       - "9001:9001"
     env_file:
       - ./env.minio.example
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
     volumes:
       - minio-data:/data
     command: server /data --console-address ":9001"
@@ -214,21 +199,9 @@ services:
       - minio
     env_file:
       - ./env.minio.example
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    command: >
-      sh -c "
-        sleep 10 &&
-        mc alias set myminio http://minio:9000 minioadmin minioadmin &&
-        mc mb myminio/spark-data || true &&
-        mc mb myminio/spark-output || true &&
-        mc mb myminio/spark-checkpoints || true &&
-        mc policy set public myminio/spark-data || true &&
-        mc policy set public myminio/spark-output || true &&
-        mc policy set public myminio/spark-checkpoints || true &&
-        echo 'MinIO setup completed'
-      "
+    entrypoint: ["sh", "-c", "/scripts/minio-init.sh"]
+    volumes:
+      - ./scripts/minio-init.sh:/scripts/minio-init.sh
     networks:
       - spark-network
 
@@ -244,15 +217,11 @@ services:
     env_file:
       - ./env.minio.example
     environment:
-      - SPARK_MODE=master
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
-      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT:-http://minio:9000}
-      - STORAGE_ACCESS_KEY_ID=${STORAGE_ACCESS_KEY_ID:-minioadmin}
-      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
-      - STORAGE_BUCKET=${STORAGE_BUCKET:-spark-data}
+      SPARK_MODE: master
+      SPARK_RPC_AUTHENTICATION_ENABLED: no
+      SPARK_RPC_ENCRYPTION_ENABLED: no
+      SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
+      SPARK_SSL_ENABLED: no
     ports:
       - "8081:8080"  # Spark Master UI (8080 inside container)
       - "7077:7077"  # Spark Master RPC
@@ -283,17 +252,15 @@ services:
     env_file:
       - ./env.minio.example
     environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=1G
-      - SPARK_WORKER_CORES=1
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
-      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT:-http://minio:9000}
-      - STORAGE_ACCESS_KEY_ID=${STORAGE_ACCESS_KEY_ID:-minioadmin}
-      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
+      &spark-worker-common-env
+      SPARK_MODE: worker
+      SPARK_MASTER_URL: spark://spark-master:7077
+      SPARK_WORKER_MEMORY: 1G
+      SPARK_WORKER_CORES: 1
+      SPARK_RPC_AUTHENTICATION_ENABLED: no
+      SPARK_RPC_ENCRYPTION_ENABLED: no
+      SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
+      SPARK_SSL_ENABLED: no
     volumes:
       - ./data:/app/data:ro
       - ./output:/app/output
@@ -321,17 +288,7 @@ services:
     env_file:
       - ./env.minio.example
     environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=1G
-      - SPARK_WORKER_CORES=1
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
-      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT:-http://minio:9000}
-      - STORAGE_ACCESS_KEY_ID=${STORAGE_ACCESS_KEY_ID:-minioadmin}
-      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
+      <<: *spark-worker-common-env
     volumes:
       - ./data:/app/data:ro
       - ./output:/app/output
@@ -359,17 +316,7 @@ services:
     env_file:
       - ./env.minio.example
     environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=1G
-      - SPARK_WORKER_CORES=1
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
-      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT:-http://minio:9000}
-      - STORAGE_ACCESS_KEY_ID=${STORAGE_ACCESS_KEY_ID:-minioadmin}
-      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-minioadmin}
+      <<: *spark-worker-common-env
     volumes:
       - ./data:/app/data:ro
       - ./output:/app/output
@@ -384,7 +331,6 @@ services:
         /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
         tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
       "
-
 
 
 volumes:

@@ -1,10 +1,28 @@
 """
 Airflow 3.0 for Spark 4.0 job using modern decorators
 """
-
+import os
 from datetime import datetime, timedelta
 from airflow.decorators import dag
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+
+endpoint=os.getenv('STORAGE_ENDPOINT')
+access_key=os.getenv('STORAGE_ACCESS_KEY_ID')
+secret_key=os.getenv('STORAGE_SECRET_KEY')
+bucket=os.getenv('STORAGE_BUCKET')
+region=os.getenv('AWS_REGION', 'us-east-1')
+path_style_access=os.getenv('STORAGE_PATH_STYLE_ACCESS')
+credentials_provider=os.getenv('STORAGE_CREDENTIALS_PROVIDER')
+catalog_name=os.getenv("CATALOG_NAME")
+catalog_io_impl=os.getenv("CATALOG_IO_IMPL")
+catalog_type=os.getenv("CATALOG_TYPE")
+warehouse_name=os.getenv("CATALOG_WAREHOUSE_NAME")
+
+# 'CATALOG_WAREHOUSE_NAME': 'iceberg-warehouse',
+# 'STORAGE_BUCKET': 'spark-data',
+# 'CATALOG_TYPE': 'hadoop',
+# 'CATALOG_NAME': 'spark_catalog',
+# 'STORAGE_PATH_STYLE_ACCESS': 'true',
 
 # Define default arguments for the DAG
 default_args = {
@@ -30,7 +48,7 @@ def spark_job_dag():
     
     spark_submit = SparkSubmitOperator(
         task_id='spark_job_submit',
-        application='/opt/airflow/dags/main.py',
+        application='/app/main.py',
         name='spark_job',
         deploy_mode='client',
         conf={
@@ -39,9 +57,17 @@ def spark_job_dag():
             'spark.sql.extensions': 'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
         },
         env_vars={
-            'STORAGE_BUCKET': 'spark-data',
-            'CATALOG_TYPE': 'hadoop',
-            'CATALOG_WAREHOUSE_NAME': 'iceberg-warehouse',
+            'STORAGE_ENDPOINT': f"{endpoint}",
+            'STORAGE_ACCESS_KEY_ID':f"{access_key}",
+            'STORAGE_SECRET_KEY': f"{secret_key}",
+            'STORAGE_BUCKET': f"{bucket}",
+            'AWS_REGION': f"{region}",
+            'STORAGE_PATH_STYLE_ACCESS': f"{path_style_access}",
+            'STORAGE_CREDENTIALS_PROVIDER': f"{credentials_provider}",
+            'CATALOG_NAME': f"{catalog_name}",
+            'CATALOG_IO_IMPL': f"{catalog_io_impl}",
+            'CATALOG_TYPE': f"{catalog_type}",
+            'CATALOG_WAREHOUSE_NAME': f"{warehouse_name}"
         },
     )
 

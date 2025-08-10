@@ -46,7 +46,7 @@ RUN wget -q https://dl.min.io/client/mc/release/linux-amd64/mc \
     && mv mc /usr/local/bin/
 
 # Copy application code
-COPY . .
+COPY spark /app
 
 # Create directories for Spark logs and temp files
 RUN mkdir -p /tmp/spark-events /tmp/spark-logs
@@ -55,6 +55,6 @@ RUN mkdir -p /tmp/spark-events /tmp/spark-logs
 EXPOSE 4040
 
 # Default command (overridden by compose for master/worker)
-CMD ["python", "-m", "dags.standalone.main"]
+CMD ["python", "-m", "app.main"]
 
 

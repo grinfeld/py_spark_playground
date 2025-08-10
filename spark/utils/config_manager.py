@@ -24,7 +24,7 @@ class StorageConfig:
     region: str
     path_style_access: Optional[bool]
     credentials_provider: Optional[str]
-    catalog_type: str  # 'hive', 'glue', or 's3'
+    catalog_type: str  # 'hive', 'glue', or 'hadoop'
 
 
 class StorageBackend:
