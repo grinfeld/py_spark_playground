@@ -134,7 +134,7 @@ services:
     command: >
       bash -c "
         airflow db migrate && \
-        airflow fab-db migrate \
+        airflow fab-db migrate && \
         airflow users create \
                   --username admin \
                   --firstname FIRST_NAME \
