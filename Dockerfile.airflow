@@ -1,5 +1,5 @@
-# Use Apache Airflow 3.0.1 as base
-FROM apache/airflow:3.0.1
+# Use Apache Airflow 3.0.4 as base
+FROM apache/airflow:3.0.4
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -46,4 +46,4 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 RUN mkdir -p /opt/airflow/logs
 
 # Set working directory
-WORKDIR /opt/airflow
+# WORKDIR /opt/airflow

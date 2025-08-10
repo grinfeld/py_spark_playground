@@ -1,12 +1,12 @@
 """
-Shared Spark job logic for both standalone and Airflow DAGs
+Shared Spark job logic for both standalone and Airflow
 """
 
 import os
 from typing import Optional
 from loguru import logger
 
-from ..utils.config_manager import config_manager
+from utils.config_manager import config_manager
 
 
 def create_spark_session(app_name: str = "SparkJob", catalog_name: Optional[str] = None):

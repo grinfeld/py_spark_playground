@@ -2,27 +2,27 @@
 Airflow 3.0 DAG for Spark 4.0 job in Kubernetes using modern decorators
 """
 
-import os
-import sys
 from datetime import datetime, timedelta
-from airflow.decorators import dag, task
-from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
-from airflow.providers.cncf.kubernetes.backcompat.pod import Port
+from airflow.decorators import dag
+from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 
+default_args = {
+    'owner': 'data-engineering',
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+    'email_on_failure': False,
+    'email_on_retry': False,
+}
 
 # Airflow 3.0 DAG using decorators for Kubernetes
 @dag(
     dag_id='spark_job_kubernetes',
     description='Spark 4.0 job in Kubernetes using Airflow 3.0 decorators',
-    schedule_interval=timedelta(hours=1),
+    schedule=timedelta(hours=1),
     start_date=datetime(2024, 1, 1),
     catchup=False,
     tags=['spark', 'configurable', 'iceberg', 'kubernetes'],
-    owner='data-engineering',
-    retries=1,
-    retry_delay=timedelta(minutes=5),
-    email_on_failure=False,
-    email_on_retry=False,
+    default_args=default_args,
 )
 def spark_job_kubernetes_dag():
     """Airflow 3.0 DAG using task decorators for Kubernetes Spark jobs."""
@@ -51,16 +51,9 @@ print(f"Kubernetes Spark job completed: {result}")
             'STORAGE_PATH_STYLE_ACCESS': '{{ var.value.STORAGE_PATH_STYLE_ACCESS }}',
             'CATALOG_IO_IMPL': '{{ var.value.CATALOG_IO_IMPL }}',
         },
-        resources={
-            'request_memory': '2Gi',
-            'request_cpu': '1000m',
-            'limit_memory': '4Gi',
-            'limit_cpu': '2000m',
-        },
         get_logs=True,
         is_delete_operator_pod=True,
         in_cluster=True,
-        config_file='/opt/airflow/.kube/config',
     )
     
     # Execute the Kubernetes task
