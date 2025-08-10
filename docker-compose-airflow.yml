@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Apache Airflow
   airflow-webserver:
@@ -22,6 +20,7 @@ services:
       AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
       AIRFLOW__CORE__ENABLE_XCOM_PICKLING: 'true'
       AIRFLOW__CORE__AUTH_MANAGER: "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager"
+      AIRFLOW__FAB__SESSION_BACKEND: "securecookie"
       # PySpark and Java environment
       JAVA_HOME: /usr/local/openjdk-17
       SPARK_HOME: /opt/spark
@@ -99,6 +98,7 @@ services:
     command: >
       bash -c "
         airflow db migrate && \
+        airflow fab-db migrate \
         airflow users create \
                   --username admin \
                   --firstname FIRST_NAME \
