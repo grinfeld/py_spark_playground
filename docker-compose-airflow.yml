@@ -222,18 +222,16 @@ services:
       SPARK_RPC_ENCRYPTION_ENABLED: no
       SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
       SPARK_SSL_ENABLED: no
+      JAVA_HOME: /opt/java/openjdk
     ports:
       - "8081:8080"  # Spark Master UI (8080 inside container)
       - "7077:7077"  # Spark Master RPC
     volumes:
       - ./data:/app/data:ro
-      - ./output:/app/output
-      - spark_logs:/opt/spark/logs
-      - spark_work:/opt/spark/work
     networks:
       - spark-network
     restart: unless-stopped
-    command: >
+    entrypoint: >
       sh -c "
         sleep 15 &&
         /opt/spark/sbin/start-master.sh &&
@@ -261,15 +259,13 @@ services:
       SPARK_RPC_ENCRYPTION_ENABLED: no
       SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
       SPARK_SSL_ENABLED: no
+      JAVA_HOME: /opt/java/openjdk
     volumes:
       - ./data:/app/data:ro
-      - ./output:/app/output
-      - spark_logs:/opt/spark/logs
-      - spark_work:/opt/spark/work
     networks:
       - spark-network
     restart: unless-stopped
-    command: >
+    entrypoint: >
       sh -c "
         sleep 20 &&
         /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
@@ -291,13 +287,10 @@ services:
       <<: *spark-worker-common-env
     volumes:
       - ./data:/app/data:ro
-      - ./output:/app/output
-      - spark_logs:/opt/spark/logs
-      - spark_work:/opt/spark/work
     networks:
       - spark-network
     restart: unless-stopped
-    command: >
+    entrypoint: >
       sh -c "
         sleep 20 &&
         /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
@@ -319,13 +312,10 @@ services:
       <<: *spark-worker-common-env
     volumes:
       - ./data:/app/data:ro
-      - ./output:/app/output
-      - spark_logs:/opt/spark/logs
-      - spark_work:/opt/spark/work
     networks:
       - spark-network
     restart: unless-stopped
-    command: >
+    entrypoint: >
       sh -c "
         sleep 20 &&
         /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
@@ -336,8 +326,6 @@ services:
 volumes:
   postgres-db-volume:
   minio-data:
-  spark_logs:
-  spark_work:
 
 networks:
   spark-network:
