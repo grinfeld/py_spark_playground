@@ -6,7 +6,7 @@ import os
 from typing import Optional
 from loguru import logger
 
-from spark.utils.config_manager import config_manager
+from utils.config_manager import config_manager
 
 
 def create_spark_session(app_name: str = "SparkJob", catalog_name: Optional[str] = None):
@@ -24,6 +24,7 @@ def create_spark_session(app_name: str = "SparkJob", catalog_name: Optional[str]
 
     spark_builder = (
         SparkSession.builder.appName(app_name)
+        .master(os.getenv("SPARK_MASTER_URL"))
         .config("spark.sql.adaptive.enabled", "true")
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
         .config("spark.sql.adaptive.skewJoin.enabled", "true")

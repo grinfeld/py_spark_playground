@@ -34,17 +34,8 @@ RUN mkdir -p /opt/spark/logs/ && chown -R spark:spark /opt/spark/logs/
 
 USER spark
 
-# Copy application code
-COPY spark /app
-
 # Create directories for Spark logs and temp files
 RUN mkdir -p /tmp/spark-events /tmp/spark-logs
 
-
 # Expose port for Spark UI (optional)
 EXPOSE 4040
-
-# Default command (overridden by compose for master/worker)
-# CMD ["python", "-m", "app.main"]
-
-

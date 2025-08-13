@@ -9,7 +9,6 @@ from typing import Dict, List
 from pyspark.sql import SparkSession, DataFrame
 from .config_manager import config_manager
 
-
 def write_dataframe_to_storage(df: DataFrame, filename: str, format: str = "parquet") -> str:
     """
     Write DataFrame to storage in a storage-agnostic way.

@@ -43,3 +43,5 @@ apache-airflow-providers-apache-spark>=5.2.1
 
 # airflow command line
 apache-airflow-providers-fab>=2.0
+
+apache-airflow-providers-celery>=3.3.0
