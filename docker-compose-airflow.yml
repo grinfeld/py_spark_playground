@@ -21,6 +21,7 @@ services:
       AIRFLOW__CORE__AUTH_MANAGER: "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager"
       AIRFLOW__FAB__SESSION_BACKEND: "securecookie"
       AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Jerusalem
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
       TZ: Asia/Jerusalem
       # PySpark and Java environment
       JAVA_HOME: /usr/local/openjdk-17
@@ -61,10 +62,11 @@ services:
       - ./data:/opt/airflow/data
       - ./requirements.txt:/opt/airflow/requirements.txt
     healthcheck:
-      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
-      interval: 10s
+      test: [ "CMD", "curl", "--fail", "http://localhost:8974/health" ]
+      interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
     restart: always
     networks:
       - spark-network
@@ -87,6 +89,12 @@ services:
       - ./data:/opt/airflow/data
       - ./requirements.txt:/opt/airflow/requirements.txt
     restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"' ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     networks:
       - spark-network
 
@@ -129,6 +137,12 @@ services:
       - ./data:/opt/airflow/data
       - ./requirements.txt:/opt/airflow/requirements.txt
     restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"' ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     networks:
       - spark-network
 

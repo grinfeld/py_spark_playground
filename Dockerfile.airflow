@@ -42,7 +42,7 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Create directories for logs
-# RUN mkdir -p /opt/airflow/logs
+RUN mkdir -p /opt/airflow/logs
 
 # Set working directory
 # WORKDIR /opt/airflow
