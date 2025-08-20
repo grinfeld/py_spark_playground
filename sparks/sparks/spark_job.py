@@ -4,10 +4,11 @@ Shared Spark job logic for both standalone and Airflow
 
 import os
 from typing import Optional
-from loguru import logger
+import logging
 
 from .utils.config_manager import config_manager
 
+logger = logging.getLogger(__name__)
 
 def create_spark_session(app_name: str = "SparkJob", catalog_name: Optional[str] = None):
     """
@@ -18,9 +19,13 @@ def create_spark_session(app_name: str = "SparkJob", catalog_name: Optional[str]
     if catalog_name is None:
         catalog_name = os.getenv('CATALOG_NAME', 'spark_catalog')
 
+    logger.info(f" Catalog {catalog_name}")
+
     logger.info("Creating Spark session with configurable storage...")
 
     warehouse_paths = config_manager.get_warehouse_paths()
+
+    logger.info(f"Warehouse paths {warehouse_paths}")
 
     spark_builder = (
         SparkSession.builder.appName(app_name)
@@ -40,14 +45,17 @@ def create_spark_session(app_name: str = "SparkJob", catalog_name: Optional[str]
     if master_url:
         spark_builder = spark_builder.master(master_url)
 
+    logger.info(f"Master URL {master_url}")
     for key, value in config_manager.get_spark_configs().items():
         spark_builder = spark_builder.config(key, value)
+        logger.info(f" config key {key} - {value}, ")
 
     for key, value in config_manager.get_catalog_configs(catalog_name).items():
+        logger.info(f" catalog config key {key} - {value}, ")
         spark_builder = spark_builder.config(key, value)
 
     spark = spark_builder.getOrCreate()
-    spark.sparkContext.setLogLevel("WARN")
+    spark.sparkContext.setLogLevel("INFO")
     return spark
 
 
