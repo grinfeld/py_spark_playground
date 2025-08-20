@@ -13,7 +13,6 @@ from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class StorageConfig:
     """Configuration for storage backend."""

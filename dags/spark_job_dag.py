@@ -22,6 +22,10 @@ catalog_type=os.getenv("CATALOG_TYPE")
 warehouse_name=os.getenv("CATALOG_WAREHOUSE_NAME")
 spark_master=os.getenv("SPARK_MASTER_URL")
 
+app_base_path = f"/opt/airflow/"
+main_file = f"{app_base_path}/dags/spark/main.py"
+whl_files = f"{app_base_path}/packages/sparks.whl"
+
 # 'CATALOG_WAREHOUSE_NAME': 'iceberg-warehouse',
 # 'STORAGE_BUCKET': 'spark-data',
 # 'CATALOG_TYPE': 'hadoop',
@@ -37,11 +41,6 @@ default_args = {
     'email_on_retry': False,
 }
 
-def find_py_files_in_dir(directory):
-    all_entries = os.listdir(directory)
-    py_files = [entry for entry in all_entries if os.path.isfile(os.path.join(directory, entry)) and entry.endswith(".py")]
-    return py_files
-
 # Airflow 3.0 DAG using decorators
 @dag(
     dag_id='spark_job',
@@ -54,16 +53,15 @@ def find_py_files_in_dir(directory):
 )
 def spark_job_dag():
     """Airflow 3.0 DAG using task decorators."""
-    app_base_path = f"{os.getcwd()}/dags/spark"
-    main_app_file = f"{app_base_path}/main.py"
-    spark_py_files = find_py_files_in_dir(app_base_path) + find_py_files_in_dir(f"{app_base_path}/utils")
-    for fname in spark_py_files:
-        logger.info(f"{fname}")
+
+    logging.info(os.getcwd())
+    logging.info(main_file)
+    logging.info(whl_files)
 
     spark_submit = SparkSubmitOperator(
         task_id='spark_job_submit',
-        application=main_app_file,
-        py_files=spark_py_files,
+        application=main_file,
+        py_files=whl_files,
         name='spark_job',
         deploy_mode='client',
         conf={

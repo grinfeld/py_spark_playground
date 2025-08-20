@@ -2,7 +2,7 @@
 Standalone entry point for running the Spark job outside Airflow.
 """
 
-from spark_job import run_spark_job
+from sparks.spark_job import run_spark_job
 
 
 def main():

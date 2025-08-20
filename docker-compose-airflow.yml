@@ -11,6 +11,7 @@ services:
       - ./env.minio.example
     environment:
       &airflow-common-env
+      AIRFLOW_CONN_SPARK_DEFAULT: spark://spark-master:7077?deploy-mode=cluster
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: ''
@@ -22,9 +23,10 @@ services:
       AIRFLOW__FAB__SESSION_BACKEND: "securecookie"
       AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Jerusalem
       AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
+      AIRFLOW__API_AUTH__JWT_SECRET: stam
+      AIRFLOW__API_AUTH__JWT_ISSUER: http://airflow-webserver:8080
       TZ: Asia/Jerusalem
       # PySpark and Java environment
-      JAVA_HOME: /usr/local/openjdk-17
       SPARK_HOME: /opt/spark
       SPARK_MASTER_URL: spark://spark-master:7077
     volumes:
@@ -256,7 +258,6 @@ services:
       SPARK_RPC_ENCRYPTION_ENABLED: no
       SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
       SPARK_SSL_ENABLED: no
-#      JAVA_HOME: /opt/java/openjdk
     ports:
       - "8081:8080"  # Spark Master UI (8080 inside container)
       - "7077:7077"  # Spark Master RPC
@@ -293,7 +294,6 @@ services:
       SPARK_RPC_ENCRYPTION_ENABLED: no
       SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
       SPARK_SSL_ENABLED: no
-#      JAVA_HOME: /opt/java/openjdk
     volumes:
       - ./data:/app/data:ro
     networks:
