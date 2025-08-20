@@ -1,12 +1,19 @@
 import datetime
+import logging
 
-from airflow.sdk import dag
-from airflow.providers.standard.operators.empty import EmptyOperator
+from airflow.sdk import dag, task
 
+logger = logging.getLogger(__name__)
 
-@dag(start_date=datetime.datetime(2021, 1, 1), schedule="@daily")
+logger.info("Starting")
+
+@dag(start_date=datetime.datetime(2021, 1, 1), schedule=None)
 def generate_dag():
-    EmptyOperator(task_id="task")
+    @task()
+    def extract():
+        logger.info("generate dag")
+
+    extract()
 
 
 generate_dag()

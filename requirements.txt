@@ -1,5 +1,13 @@
-# Core PySpark dependencies
-pyspark>=3.5.2
+# Kubernetes support for Airflow
+apache-airflow-providers-cncf-kubernetes>=10.7.0
+
+# Spark provider for Airflow (SparkSubmitOperator)
+apache-airflow-providers-apache-spark>=5.3.2
+
+# airflow command line
+apache-airflow-providers-fab>=2.0
+
+apache-airflow-providers-celery>=3.3.0
 
 # Apache Iceberg support
 pyiceberg>=0.9.1
@@ -33,15 +41,3 @@ loguru>=0.7.3
 
 # HTTP requests for health checks
 requests>=2.32.4
-
-# Kubernetes support for Airflow
-apache-airflow-providers-cncf-kubernetes>=10.7.0
-kubernetes>=33.1.0
-
-# Spark provider for Airflow (SparkSubmitOperator)
-apache-airflow-providers-apache-spark>=5.3.2
-
-# airflow command line
-apache-airflow-providers-fab>=2.0
-
-apache-airflow-providers-celery>=3.3.0
