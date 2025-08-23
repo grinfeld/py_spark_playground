@@ -17,6 +17,7 @@ Funny things:
 
 So downgraded spark to 3.5.6.
 
-Finally, despite few wrong suggestions of Gemini and ChatGPT about right configurations, succeeded to run airflow, show data and write it to minIO.
+Finally, despite getting few wrong suggestions from Gemini and ChatGPT about right spark configurations, 
+succeeded to run airflow, to show data and to write it to minIO.
 
 Next step, use Iceberg :)
