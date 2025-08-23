@@ -11,7 +11,7 @@ services:
       - ./env.minio.example
     environment:
       &airflow-common-env
-      AIRFLOW_CONN_SPARK_DEFAULT: spark://spark-master:7077?deploy-mode=cluster
+      AIRFLOW_CONN_SPARK_DEFAULT: spark://@spark-master:7077
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: ''

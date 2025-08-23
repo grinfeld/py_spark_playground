@@ -1,51 +1,36 @@
 """
-Airflow 3.0 for Spark 4.0 job using modern decorators
+Airflow 3.0 for Spark job using modern decorators
 """
 import logging
 import os
 from datetime import datetime, timedelta
 from airflow.decorators import dag
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+from utils.config_manager import config_manager
 
 logger = logging.getLogger(__name__)
 
-endpoint=os.getenv('STORAGE_ENDPOINT')
-access_key=os.getenv('STORAGE_ACCESS_KEY_ID')
-secret_key=os.getenv('STORAGE_SECRET_KEY')
-bucket=os.getenv('STORAGE_BUCKET')
-region=os.getenv('AWS_REGION', 'us-east-1')
-path_style_access=os.getenv('STORAGE_PATH_STYLE_ACCESS')
-credentials_provider=os.getenv('STORAGE_CREDENTIALS_PROVIDER')
-catalog_name=os.getenv("CATALOG_NAME")
-catalog_io_impl=os.getenv("CATALOG_IO_IMPL")
-catalog_type=os.getenv("CATALOG_TYPE")
-warehouse_name=os.getenv("CATALOG_WAREHOUSE_NAME")
 spark_master=os.getenv("SPARK_MASTER_URL")
-
-app_base_path = f"/opt/airflow/"
-main_file = f"{app_base_path}/dags/spark/main.py"
-whl_files = f"{app_base_path}/packages/sparks.whl"
-
-# 'CATALOG_WAREHOUSE_NAME': 'iceberg-warehouse',
-# 'STORAGE_BUCKET': 'spark-data',
-# 'CATALOG_TYPE': 'hadoop',
-# 'CATALOG_NAME': 'spark_catalog',
-# 'STORAGE_PATH_STYLE_ACCESS': 'true',
 
 # Define default arguments for the DAG
 default_args = {
     'owner': 'data-engineering',
     'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    'retry_delay': timedelta(minutes=15),
     'email_on_failure': False,
     'email_on_retry': False,
 }
 
+configs = config_manager.get_storage_config()
+configs.update(config_manager.get_spark_configs())
+
+# configs.update(config_manager.get_catalog_configs()) # if we need to use catalog
+
 # Airflow 3.0 DAG using decorators
 @dag(
     dag_id='spark_job',
-    description='Spark 4.0 job using Airflow 3.0 decorators',
-    schedule=timedelta(hours=1),
+    description='Spark job using Airflow 3',
+#    schedule=timedelta(hours=1),
     start_date=datetime(2024, 1, 1),
     catchup=False,
     tags=['spark', 'configurable', 'iceberg'],
@@ -55,33 +40,22 @@ def spark_job_dag():
     """Airflow 3.0 DAG using task decorators."""
 
     logging.info(os.getcwd())
-    logging.info(main_file)
-    logging.info(whl_files)
-
     spark_submit = SparkSubmitOperator(
         task_id='spark_job_submit',
-        application=main_file,
-        py_files=whl_files,
+        application="/opt/airflow/dags/spark/main.py",
         name='spark_job',
         deploy_mode='client',
-        conf={
-            'master': spark_master,
-            'spark.sql.adaptive.enabled': 'true',
-            'spark.sql.extensions': 'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
-        },
-        env_vars={
-            'STORAGE_ENDPOINT': f"{endpoint}",
-            'STORAGE_ACCESS_KEY_ID':f"{access_key}",
-            'STORAGE_SECRET_KEY': f"{secret_key}",
-            'STORAGE_BUCKET': f"{bucket}",
-            'AWS_REGION': f"{region}",
-            'STORAGE_PATH_STYLE_ACCESS': f"{path_style_access}",
-            'STORAGE_CREDENTIALS_PROVIDER': f"{credentials_provider}",
-            'CATALOG_NAME': f"{catalog_name}",
-            'CATALOG_IO_IMPL': f"{catalog_io_impl}",
-            'CATALOG_TYPE': f"{catalog_type}",
-            'CATALOG_WAREHOUSE_NAME': f"{warehouse_name}"
-        },
+        packages="org.apache.iceberg:iceberg-aws-bundle:1.9.2,"
+                 "org.apache.iceberg:iceberg-hive-runtime:1.7.2,"
+                 "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.9.2,"
+                 "org.apache.hadoop:hadoop-aws:3.3.4"
+        ,
+        conf=configs,
+        application_args=[
+            "--job-name", "Simple Show Job",
+            "--master", spark_master,
+            "--output-path", f"s3a://{config_manager.storage_config.bucket}/output"
+        ]
     )
 
     spark_submit

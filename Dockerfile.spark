@@ -1,19 +1,19 @@
-FROM apache/spark:python3-java17
+FROM apache/spark:3.5.6-java17
 
 USER root
 
 RUN apt-get update && apt-get install -y \
     wget \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+    curl
 
-# Download Iceberg and Glue JARs
-RUN mkdir -p /opt/spark/jars/iceberg \
-    && cd /opt/spark/jars/iceberg \
-    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.4.2/iceberg-spark-runtime-3.5_2.12-1.4.2.jar \
-    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/1.4.2/iceberg-aws-bundle-1.4.2.jar \
-    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-hive-runtime/1.4.2/iceberg-hive-runtime-1.4.2.jar \
-    && cp *.jar /opt/spark/jars/
+RUN apt-get update && apt-get install -y \
+    python3.11 python3.11-venv python3.11-dev python3-pip
+
+RUN cd /usr/lib/ && ln -s -f python3.11 /usr/bin/python3 && ln -s -f python3.11 /usr/bin/python
+
+RUN rm -rf /var/lib/apt/lists/*
+
+USER root
 
 # Set working directory
 # Note: The application code is copied in for spark-app; master/worker override CMD
@@ -24,11 +24,6 @@ RUN mkdir -p /opt/spark/jars/iceberg \
 # COPY requirements.txt .
 # Install Python dependencies
 # RUN pip install --no-cache-dir -r requirements.txt
-
-# Install MinIO client for S3 compatibility
-RUN wget -q https://dl.min.io/client/mc/release/linux-amd64/mc \
-    && chmod +x mc \
-    && mv mc /usr/local/bin/
 
 RUN mkdir -p /opt/spark/logs/ && chown -R spark:spark /opt/spark/logs/
 
