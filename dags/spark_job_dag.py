@@ -3,7 +3,7 @@ Airflow 3.0 for Spark job using modern decorators
 """
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from airflow.decorators import dag
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from utils.config_manager import config_manager
@@ -40,7 +40,7 @@ def spark_job_dag():
     """Airflow 3.0 DAG using task decorators."""
 
     logging.info(os.getcwd())
-    main_file = f"{os.getcwd()}/dags/spark/main.py"
+    main_file = f"{os.getcwd()}/dags/spark/simple_spark.py"
     spark_submit = SparkSubmitOperator(
         task_id='spark_job_submit',
         application=main_file,
