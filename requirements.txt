@@ -3,6 +3,7 @@ apache-airflow-providers-cncf-kubernetes>=10.7.0
 
 # Spark provider for Airflow (SparkSubmitOperator)
 apache-airflow-providers-apache-spark>=5.3.2
+pyspark==3.5.6
 
 # airflow command line
 apache-airflow-providers-fab>=2.0
