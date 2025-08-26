@@ -34,6 +34,8 @@ RUN mkdir -p /opt/airflow/logs
 
 # COPY sparks/ /tmp/sparks/
 
+COPY spark-defaults.conf "/opt/spark/conf/spark-defaults.conf"
+
 # RUN cd /tmp/sparks/ && python -m build
 # RUN cp /tmp/sparks/dist/sparks*.whl /opt/airflow/packages/sparks.whl
 

@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 class StorageConfig:
     """Configuration for storage backend."""
     endpoint: Optional[str]
+    ssl_enabled: Optional[bool]
     access_key: Optional[str]
     secret_key: Optional[str]
     bucket: Optional[str]
@@ -31,6 +32,7 @@ class CatalogConfig:
     warehouse_path: str
     io_impl: Optional[str]
     warehouse_dir: Optional[str]
+    empty: bool = False
 
 class StorageBackend:
     """Storage backend implementation."""
@@ -55,17 +57,24 @@ class StorageBackend:
         if self.config.access_key and self.config.secret_key:
             configs.update({
                 "spark.hadoop.fs.s3a.access.key": self.config.access_key,
-                "spark.hadoop.fs.s3a.secret.key": self.config.secret_key,
+                "spark.hadoop.fs.s3a.secret.key": self.config.secret_key
             })
         
-        # Add path style access if specified
+        # Add ssl enabled if specified
         if self.config.path_style_access is not None:
             configs["spark.hadoop.fs.s3a.path.style.access"] = str(self.config.path_style_access).lower()
+
+        # Add path style access if specified
+        if self.config.ssl_enabled is not None:
+            configs["spark.hadoop.fs.s3a.connection.ssl.enabled"] = str(self.config.ssl_enabled).lower()
         
         # Add credentials provider if specified
         if self.config.credentials_provider:
             configs["spark.hadoop.fs.s3a.aws.credentials.provider"] = self.config.credentials_provider
-        
+
+        # "spark.executorEnv.AWS_ACCESS_KEY_ID": MINIO_ACCESS_KEY,
+        # "spark.executorEnv.AWS_SECRET_ACCESS_KEY": MINIO_SECRET_KEY,
+
         return configs
 
 class IcebergCatalogBackend(ABC):
@@ -85,7 +94,8 @@ class IcebergCatalogBackend(ABC):
         """Get common catalog configuration shared by all catalog backends."""
         configs = {
             self._format_with_name("warehouse"): self.catalog_config.warehouse_path,
-            "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
+            "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
+            "spark.sql.defaultCatalog": self.catalog_config.catalog_name
         }
 
         if self.catalog_config.warehouse_dir is not None:
@@ -104,6 +114,17 @@ class IcebergCatalogBackend(ABC):
     def get_catalog_configs(self) -> Dict[str, str]:
         """Get catalog configuration."""
         return self.get_common_catalog_configs()
+
+class EmptyCatalog(IcebergCatalogBackend):
+
+    def __init__(self):
+        super().__init__(StorageConfig(None, None, None, None, None, None, None), CatalogConfig("", "", "", None, None, True))
+
+    def get_common_catalog_configs(self):
+        return {}
+
+    def get_catalog_configs(self):
+        return {}
 
 
 class HiveCatalog(IcebergCatalogBackend):
@@ -130,37 +151,54 @@ class HiveCatalog(IcebergCatalogBackend):
     def _get_warehouse_dir(self) -> Optional[str]:
         return None
 
+class WithS3Catalog(IcebergCatalogBackend):
+    def _s3_config(self):
+        configs = {}
+        # Add storage-specific configurations for MinIO
+        if self.storage_config.endpoint:  # If endpoint is set, it's MinIO
+            configs[self._format_with_name("s3.endpoint")] = self.storage_config.endpoint
 
-class GlueCatalog(IcebergCatalogBackend):
+        if self.storage_config.access_key:
+            configs["spark.executorEnv.AWS_ACCESS_KEY_ID"] = self.storage_config.access_key
+
+        if self.storage_config.secret_key:
+            configs["spark.executorEnv.AWS_SECRET_ACCESS_KEY"] = self.storage_config.secret_key
+
+        # Add ssl enabled if specified
+        if self.storage_config.path_style_access is not None:
+            configs[self._format_with_name("s3.path-style-access")] = str(self.storage_config.path_style_access).lower()
+
+        return configs
+
+class GlueCatalog(WithS3Catalog):
     """AWS Glue catalog implementation."""
     
     def get_catalog_configs(self) -> Dict[str, str]:
         """Get Glue catalog configuration."""
         # Get common configurations
         configs = self.get_common_catalog_configs()
-        
+        configs.update(super()._s3_config())
         # Add Glue-specific configurations
         configs.update({
             self._format_with_name(): "org.apache.iceberg.aws.glue.GlueCatalog",
             self._format_with_name("type"): "glue"
         })
 
-        # Add storage-specific configurations for MinIO
-        if self.storage_config.endpoint:  # If endpoint is set, it's MinIO
-            configs.update({
-                self._format_with_name("s3.endpoint"): self.storage_config.endpoint,
-                self._format_with_name("s3.access-key"): self.storage_config.access_key,
-                self._format_with_name("s3.secret-key"): self.storage_config.secret_key,
-            })
+        # glue works with s3 and not with s3a protocol
+        if self.catalog_config.warehouse_path is not None:
+            sub = str(self.catalog_config.warehouse_path)
+            if sub.startswith("s3a://"):
+                configs[self._format_with_name("warehouse")] = f"s3://{sub[6:]}"
 
         return configs
 
 # catalog implementation for hdfs or s3 compatible storage (e.g., s3 or minIO)
-class HadoopCatalog(IcebergCatalogBackend):
+class HadoopCatalog(WithS3Catalog):
     def get_catalog_configs(self) -> Dict[str, str]:
         """Get S3/Hadoop catalog configuration."""
         # Get common configurations
         configs = self.get_common_catalog_configs()
+        configs.update(super()._s3_config())
 
         # Add S3/Hadoop-specific configurations
         configs.update({
@@ -182,13 +220,15 @@ class ConfigManager:
     def _load_catalog_config(self) -> CatalogConfig:
         catalog_type = os.getenv("CATALOG_TYPE")
         if catalog_type is None:
-            raise ValueError("Catalog type should not be empty")
+            logger.info("Catalog type should not be empty. No catalog should be used in script")
+            return CatalogConfig(empty=True, catalog_type="", catalog_name="", warehouse_path="", io_impl=None, warehouse_dir=None)
         return CatalogConfig(
             catalog_type=catalog_type,
-            catalog_name=os.getenv("CATALOG_NAME"),
-            warehouse_path=os.getenv("CATALOG_WAREHOUSE_NAME"),
+            catalog_name=os.getenv("CATALOG_WAREHOUSE_NAME"),
+            warehouse_path=os.getenv("CATALOG_WAREHOUSE_PATH"),
             io_impl=os.getenv("CATALOG_IO_IMPL"),
-            warehouse_dir=os.getenv("CATALOG_WAREHOUSE_DIR")
+            warehouse_dir=os.getenv("CATALOG_WAREHOUSE_DIR"),
+            empty=False
         )
 
     def _load_storage_config(self) -> StorageConfig:
@@ -197,6 +237,12 @@ class ConfigManager:
         bucket_env = os.getenv('STORAGE_BUCKET')
         if not bucket_env:
             raise ValueError("STORAGE_BUCKET must be set for storage configuration")
+
+        # Parse storage ssl enabled
+        storage_ssl_enabled_str = os.getenv('STORAGE_ENDPOINT_SSL_ENABLE')
+        storage_ssl_enabled = None
+        if storage_ssl_enabled_str:
+            storage_ssl_enabled = storage_ssl_enabled_str.lower() in ('true', '1', 'yes', 'on')
 
         # Parse path style access
         path_style_access_str = os.getenv('STORAGE_PATH_STYLE_ACCESS')
@@ -211,7 +257,8 @@ class ConfigManager:
             bucket=bucket_env,
             region=os.getenv('AWS_REGION', 'us-east-1'),
             path_style_access=path_style_access,
-            credentials_provider=os.getenv('STORAGE_CREDENTIALS_PROVIDER')
+            credentials_provider=os.getenv('STORAGE_CREDENTIALS_PROVIDER'),
+            ssl_enabled=storage_ssl_enabled
         )
 
     def _create_storage_backend(self, config: StorageConfig) -> StorageBackend:
@@ -220,6 +267,8 @@ class ConfigManager:
     
     def _create_catalog_backend(self, catalog_config: CatalogConfig, storage_config: StorageConfig) -> IcebergCatalogBackend:
         """Create appropriate catalog backend based on configuration."""
+        if catalog_config.empty:
+            return EmptyCatalog()
         type = catalog_config.catalog_type
         if type == 'hive':
             return HiveCatalog(storage_config, catalog_config)
@@ -247,17 +296,6 @@ class ConfigManager:
     def get_storage_config(self) -> Dict[str, str]:
         """Get warehouse paths for the current storage backend."""
         return self.storage_backend.get_spark_storage_config()
-    
-    # def get_data_paths(self, filename: str) -> Dict[str, str]:
-    #     """Get data file paths for the current storage backend."""
-    #     base_path = f"s3a://{self.config.bucket}"
-    #     return {
-    #         "parquet": f"{base_path}/{filename}.parquet",
-    #         "csv": f"{base_path}/{filename}.csv",
-    #         "iceberg_table": f"spark_catalog.default.{filename}_iceberg",
-    #         "glue_table": f"glue_catalog.default.{filename}_glue"
-    #     }
-
 
 # Global config manager instance
 config_manager = ConfigManager()
