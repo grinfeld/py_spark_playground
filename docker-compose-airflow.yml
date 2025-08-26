@@ -1,43 +1,75 @@
+---
+x-airflow-common:
+  &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
+  env_file:
+    - ./env.minio.example
+  environment:
+    &airflow-common-env
+    AIRFLOW_CONN_SPARK_DEFAULT: spark://@spark-master:7077
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    AIRFLOW__CORE__ENABLE_XCOM_PICKLING: 'true'
+    AIRFLOW__CORE__AUTH_MANAGER: "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager"
+    AIRFLOW__FAB__SESSION_BACKEND: "securecookie"
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Jerusalem
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
+    AIRFLOW__API_AUTH__JWT_SECRET: stam
+    AIRFLOW__API_AUTH__JWT_ISSUER: http://airflow-webserver:8080
+    TZ: Asia/Jerusalem
+    # PySpark and Java environment
+    SPARK_HOME: /opt/spark
+    SPARK_MASTER_URL: spark://spark-master:7077
+  depends_on:
+    - postgres
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./data:/opt/airflow/data
+    - ./requirements.txt:/opt/airflow/requirements.txt
+    - ./ivy:/home/airflow/.ivy2
+    - ./events:/opt/spark/events
+    - ./spark-logs:/opt/spark/logs
+  networks:
+    - spark-network
+
+---
+x-spark-common:
+  &spark-common
+  build:
+    context: .
+    dockerfile: Dockerfile.spark
+  env_file:
+    - ./env.minio.example
+  environment:
+    &spark-worker-common-env
+    SPARK_MASTER_URL: spark://spark-master:7077
+    SPARK_RPC_AUTHENTICATION_ENABLED: no
+    SPARK_RPC_ENCRYPTION_ENABLED: no
+    SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
+    SPARK_SSL_ENABLED: no
+  volumes:
+    - ./data:/app/data:ro
+    - ./events:/opt/spark/events
+    - ./spark-logs:/opt/spark/logs
+  networks:
+    - spark-network
+  restart: unless-stopped
+
 services:
   # Apache Airflow
   airflow-webserver:
-    build:
-      context: .
-      dockerfile: Dockerfile.airflow
+    <<: *airflow-common
     depends_on:
       - airflow-init
     command: api-server
-    env_file:
-      - ./env.minio.example
-    environment:
-      &airflow-common-env
-      AIRFLOW_CONN_SPARK_DEFAULT: spark://@spark-master:7077
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-      AIRFLOW__CORE__FERNET_KEY: ''
-      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-      AIRFLOW__CORE__ENABLE_XCOM_PICKLING: 'true'
-      AIRFLOW__CORE__AUTH_MANAGER: "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager"
-      AIRFLOW__FAB__SESSION_BACKEND: "securecookie"
-      AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Jerusalem
-      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
-      AIRFLOW__API_AUTH__JWT_SECRET: stam
-      AIRFLOW__API_AUTH__JWT_ISSUER: http://airflow-webserver:8080
-      TZ: Asia/Jerusalem
-      # PySpark and Java environment
-      SPARK_HOME: /opt/spark
-      SPARK_MASTER_URL: spark://spark-master:7077
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - ./data:/opt/airflow/data
-      - ./requirements.txt:/opt/airflow/requirements.txt
-      - ./ivy:/home/airflow/.ivy2
-      - ./events:/opt/spark/events
-      - ./spark-logs:/opt/spark/logs
     ports:
       - "8080:8080"
     healthcheck:
@@ -46,29 +78,12 @@ services:
       timeout: 10s
       retries: 5
     restart: always
-    networks:
-      - spark-network
 
   airflow-scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile.airflow
+    <<: *airflow-common
     depends_on:
       - airflow-init
     command: scheduler
-    env_file:
-      - ./env.minio.example
-    environment:
-      <<: *airflow-common-env
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - ./data:/opt/airflow/data
-      - ./requirements.txt:/opt/airflow/requirements.txt
-      - ./ivy:/home/airflow/.ivy2
-      - ./events:/opt/spark/events
-      - ./spark-logs:/opt/spark/logs
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://localhost:8974/health" ]
       interval: 30s
@@ -76,29 +91,10 @@ services:
       retries: 5
       start_period: 30s
     restart: always
-    networks:
-      - spark-network
 
   airflow-dag-processor:
-    build:
-      context: .
-      dockerfile: Dockerfile.airflow
-    depends_on:
-      - airflow-init
+    <<: *airflow-common
     command: dag-processor
-    env_file:
-      - ./env.minio.example
-    environment:
-      <<: *airflow-common-env
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - ./data:/opt/airflow/data
-      - ./requirements.txt:/opt/airflow/requirements.txt
-      - ./ivy:/home/airflow/.ivy2
-      - ./events:/opt/spark/events
-      - ./spark-logs:/opt/spark/logs
     restart: always
     healthcheck:
       test: [ "CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"' ]
@@ -106,50 +102,12 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    networks:
-      - spark-network
-
-#  airflow-worker:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile.airflow
-#    depends_on:
-#      - airflow-init
-#    command: celery worker
-#    env_file:
-#      - ./env.minio.example
-#    environment:
-#      <<: *airflow-common-env
-#    volumes:
-#      - ./dags:/opt/airflow/dags
-#      - ./logs:/opt/airflow/logs
-#      - ./plugins:/opt/airflow/plugins
-#      - ./data:/opt/airflow/data
-#      - ./requirements.txt:/opt/airflow/requirements.txt
-#    restart: always
-#    networks:
-#      - spark-network
-
-  airflow-trigger:
-    build:
-      context: .
-      dockerfile: Dockerfile.airflow
     depends_on:
       - airflow-init
+
+  airflow-trigger:
+    <<: *airflow-common
     command: triggerer
-    env_file:
-      - ./env.minio.example
-    environment:
-      <<: *airflow-common-env
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - ./data:/opt/airflow/data
-      - ./requirements.txt:/opt/airflow/requirements.txt
-      - ./ivy:/home/airflow/.ivy2
-      - ./events:/opt/spark/events
-      - ./spark-logs:/opt/spark/logs
     restart: always
     healthcheck:
       test: [ "CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"' ]
@@ -157,8 +115,8 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    networks:
-      - spark-network
+    depends_on:
+      - airflow-init
 
   airflow-init:
     build:
@@ -255,31 +213,16 @@ services:
 
   # Spark Master
   spark-master:
-    build:
-      context: .
-      dockerfile: Dockerfile.spark
+    <<: *spark-common
     container_name: spark-master
     depends_on:
       - minio
       - minio-client
-    env_file:
-      - ./env.minio.example
     environment:
       SPARK_MODE: master
-      SPARK_RPC_AUTHENTICATION_ENABLED: no
-      SPARK_RPC_ENCRYPTION_ENABLED: no
-      SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
-      SPARK_SSL_ENABLED: no
     ports:
       - "8081:8080"  # Spark Master UI (8080 inside container)
       - "7077:7077"  # Spark Master RPC
-    volumes:
-      - ./data:/app/data:ro
-      - ./events:/opt/spark/events
-      - ./spark-logs:/opt/spark/logs
-    networks:
-      - spark-network
-    restart: unless-stopped
     entrypoint: >
       sh -c "
         sleep 15 &&
@@ -289,32 +232,15 @@ services:
 
   # Spark Worker 1
   spark-worker-1:
-    build:
-      context: .
-      dockerfile: Dockerfile.spark
+    <<: *spark-common
     container_name: spark-worker-1
     depends_on:
       - spark-master
-      - minio
-    env_file:
-      - ./env.minio.example
     environment:
-      &spark-worker-common-env
+      <<: *spark-worker-common-env
       SPARK_MODE: worker
-      SPARK_MASTER_URL: spark://spark-master:7077
       SPARK_WORKER_MEMORY: 1G
       SPARK_WORKER_CORES: 1
-      SPARK_RPC_AUTHENTICATION_ENABLED: no
-      SPARK_RPC_ENCRYPTION_ENABLED: no
-      SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
-      SPARK_SSL_ENABLED: no
-    volumes:
-      - ./data:/app/data:ro
-      - ./events:/opt/spark/events
-      - ./spark-logs:/opt/spark/logs
-    networks:
-      - spark-network
-    restart: unless-stopped
     entrypoint: >
       sh -c "
         sleep 20 &&
@@ -324,24 +250,14 @@ services:
 
   # Spark Worker 2
   spark-worker-2:
-    build:
-      context: .
-      dockerfile: Dockerfile.spark
+    <<: *spark-common
     container_name: spark-worker-2
     depends_on:
       - spark-master
-      - minio
-    env_file:
-      - ./env.minio.example
     environment:
-      <<: *spark-worker-common-env
-    volumes:
-      - ./data:/app/data:ro
-      - ./events:/opt/spark/events
-      - ./spark-logs:/opt/spark/logs
-    networks:
-      - spark-network
-    restart: unless-stopped
+      SPARK_MODE: worker
+      SPARK_WORKER_MEMORY: 1G
+      SPARK_WORKER_CORES: 1
     entrypoint: >
       sh -c "
         sleep 20 &&
@@ -351,24 +267,14 @@ services:
 
   # Spark Worker 3
   spark-worker-3:
-    build:
-      context: .
-      dockerfile: Dockerfile.spark
+    <<: *spark-common
     container_name: spark-worker-3
     depends_on:
       - spark-master
-      - minio
-    env_file:
-      - ./env.minio.example
     environment:
-      <<: *spark-worker-common-env
-    volumes:
-      - ./data:/app/data:ro
-      - ./events:/opt/spark/events
-      - ./spark-logs:/opt/spark/logs
-    networks:
-      - spark-network
-    restart: unless-stopped
+      SPARK_MODE: worker
+      SPARK_WORKER_MEMORY: 1G
+      SPARK_WORKER_CORES: 1
     entrypoint: >
       sh -c "
         sleep 20 &&
@@ -377,35 +283,16 @@ services:
       "
 
   spark-history-server:
-    build:
-      context: .
-      dockerfile: Dockerfile.spark
+    <<: *spark-common
     container_name: spark-history-server
-    networks:
-      - spark-network
     entrypoint: /bin/bash
-    volumes:
-      - ./events:/opt/spark/events
-      - ./spark-logs:/opt/spark/logs
     command: -c "/opt/spark/sbin/start-history-server.sh; tail -f /dev/null"
     ports:
       - '18080:18080'
 
-  redis:
-    image: redis:latest # Specifies the Redis image to use
-    container_name: redis # Optional: Assigns a name to your container
-    ports:
-      - "6379:6379" # Maps port 6379 on the host to port 6379 in the container
-    volumes:
-      - redis_data:/data # Mounts a named volume for data persistence
-    restart: always # Ensures Redis restarts automatically if it stops
-    networks:
-      - spark-network
-
 volumes:
   postgres-db-volume:
   minio-data:
-  redis_data:
 
 networks:
   spark-network:
