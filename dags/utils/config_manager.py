@@ -280,7 +280,7 @@ class ConfigManager:
             raise ValueError(f"Unknown catalog type: {type}. Supported types: 'hive', 'glue', 's3', 'hadoop'")
 
     def get_spark_configs(self) -> Dict[str, str]:
-        return {
+        configs = {
             "spark.sql.adaptive.enabled": "true",
             "spark.sql.adaptive.coalescePartitions.enabled": "true",
             "spark.sql.adaptive.skewJoin.enabled": "true",
@@ -288,6 +288,11 @@ class ConfigManager:
             "spark.sql.adaptive.optimizeSkewedJoin.enabled": "true",
             "spark.sql.adaptive.forceApply": "true"
         }
+
+        if os.getenv("SPARK_MASTER_URL") is not None:
+            configs["spark.master"] = os.getenv("SPARK_MASTER_URL")
+
+        return configs
 
     def get_catalog_configs(self) -> Dict[str, str]:
         """Get catalog configuration using polymorphic catalog backend."""

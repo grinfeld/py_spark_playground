@@ -44,6 +44,7 @@ def spark_job_dag():
     spark_submit = SparkSubmitOperator(
         task_id='spark_job_submit',
         application=main_file,
+        conn_id='spark_default',
         name='spark_job',
         deploy_mode='client',
         packages="org.apache.hadoop:hadoop-aws:3.3.4"
