@@ -35,6 +35,9 @@ services:
       - ./plugins:/opt/airflow/plugins
       - ./data:/opt/airflow/data
       - ./requirements.txt:/opt/airflow/requirements.txt
+      - ./ivy:/home/airflow/.ivy2
+      - ./events:/opt/spark/events
+      - ./spark-logs:/opt/spark/logs
     ports:
       - "8080:8080"
     healthcheck:
@@ -63,6 +66,9 @@ services:
       - ./plugins:/opt/airflow/plugins
       - ./data:/opt/airflow/data
       - ./requirements.txt:/opt/airflow/requirements.txt
+      - ./ivy:/home/airflow/.ivy2
+      - ./events:/opt/spark/events
+      - ./spark-logs:/opt/spark/logs
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://localhost:8974/health" ]
       interval: 30s
@@ -90,6 +96,9 @@ services:
       - ./plugins:/opt/airflow/plugins
       - ./data:/opt/airflow/data
       - ./requirements.txt:/opt/airflow/requirements.txt
+      - ./ivy:/home/airflow/.ivy2
+      - ./events:/opt/spark/events
+      - ./spark-logs:/opt/spark/logs
     restart: always
     healthcheck:
       test: [ "CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"' ]
@@ -138,6 +147,9 @@ services:
       - ./plugins:/opt/airflow/plugins
       - ./data:/opt/airflow/data
       - ./requirements.txt:/opt/airflow/requirements.txt
+      - ./ivy:/home/airflow/.ivy2
+      - ./events:/opt/spark/events
+      - ./spark-logs:/opt/spark/logs
     restart: always
     healthcheck:
       test: [ "CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"' ]
@@ -263,6 +275,8 @@ services:
       - "7077:7077"  # Spark Master RPC
     volumes:
       - ./data:/app/data:ro
+      - ./events:/opt/spark/events
+      - ./spark-logs:/opt/spark/logs
     networks:
       - spark-network
     restart: unless-stopped
@@ -296,6 +310,8 @@ services:
       SPARK_SSL_ENABLED: no
     volumes:
       - ./data:/app/data:ro
+      - ./events:/opt/spark/events
+      - ./spark-logs:/opt/spark/logs
     networks:
       - spark-network
     restart: unless-stopped
@@ -321,6 +337,8 @@ services:
       <<: *spark-worker-common-env
     volumes:
       - ./data:/app/data:ro
+      - ./events:/opt/spark/events
+      - ./spark-logs:/opt/spark/logs
     networks:
       - spark-network
     restart: unless-stopped
@@ -346,6 +364,8 @@ services:
       <<: *spark-worker-common-env
     volumes:
       - ./data:/app/data:ro
+      - ./events:/opt/spark/events
+      - ./spark-logs:/opt/spark/logs
     networks:
       - spark-network
     restart: unless-stopped
@@ -355,6 +375,22 @@ services:
         /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
         tail -f /opt/spark/logs/spark-*-org.apache.spark.deploy.worker.Worker-*.out
       "
+
+  spark-history-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-history-server
+    networks:
+      - spark-network
+    entrypoint: /bin/bash
+    volumes:
+      - ./events:/opt/spark/events
+      - ./spark-logs:/opt/spark/logs
+    command: -c "/opt/spark/sbin/start-history-server.sh; tail -f /dev/null"
+    ports:
+      - '18080:18080'
+
   redis:
     image: redis:latest # Specifies the Redis image to use
     container_name: redis # Optional: Assigns a name to your container

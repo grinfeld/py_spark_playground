@@ -23,24 +23,27 @@ default_args = {
 
 configs = config_manager.get_storage_config()
 configs.update(config_manager.get_spark_configs())
+configs.update(config_manager.get_catalog_configs())
 
 # configs.update(config_manager.get_catalog_configs()) # if we need to use catalog
 
 # Airflow 3.0 DAG using decorators
 @dag(
-    dag_id='spark_job',
+    dag_id='spark_iceberg_job',
     description='Spark job using Airflow 3',
 #    schedule=timedelta(hours=1),
     start_date=datetime(2024, 1, 1),
     catchup=False,
-    tags=['spark', 's3'],
+    tags=['spark', 's3', 'iceberg'],
     default_args=default_args
 )
 def spark_job_dag():
     """Airflow 3.0 DAG using task decorators."""
 
     logging.info(os.getcwd())
-    main_file = f"{os.getcwd()}/dags/spark/simple_spark.py"
+    main_file = f"{os.getcwd()}/dags/spark/iceberg_spark.py"
+    logging.info(f"Got catalog config: {config_manager.get_catalog_configs()}")
+    logging.info(f"Got catalog name: {config_manager.catalog_config.catalog_name}")
     spark_submit = SparkSubmitOperator(
         task_id='spark_job_submit',
         application=main_file,
@@ -48,15 +51,21 @@ def spark_job_dag():
         deploy_mode='client',
         packages="org.apache.hadoop:hadoop-aws:3.3.4"
                 ",software.amazon.awssdk:bundle:2.32.29"
-                # ",org.apache.iceberg:iceberg-aws-bundle:1.9.2"
-                # ",org.apache.iceberg:iceberg-hive-runtime:1.7.2"
-                # ",org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.9.2"
+                ",com.amazonaws:aws-java-sdk-bundle:1.12.262"
+                ",org.apache.iceberg:iceberg-aws-bundle:1.4.2"
+                ",org.apache.iceberg:iceberg-hive-runtime:1.4.2"
+                ",org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2"
         ,
         conf=configs,
+        env_vars={
+            "AWS_ACCESS_KEY_ID": config_manager.storage_config.access_key,
+            "AWS_SECRET_ACCESS_KEY": config_manager.storage_config.secret_key
+        },
         application_args=[
             "--job-name", "Simple Show Job",
             "--master", spark_master,
-            "--output-path", f"s3a://{config_manager.storage_config.bucket}/output"
+            "--db-name", f"{config_manager.catalog_config.catalog_name}",
+            "--table-name", "mytable"
         ]
     )
 

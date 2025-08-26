@@ -572,4 +572,108 @@ The following diff applies all the recommended changes.
  
  volumes:
 
+---
+
+## August 26, 2025 - Spark/Iceberg Debugging Session
+
+### 1. `[REQUIRES_SINGLE_PART_NAMESPACE]`
+
+**Problem:** The initial Spark job failed with `pyspark.errors.exceptions.captured.AnalysisException: [REQUIRES_SINGLE_PART_NAMESPACE] spark_catalog requires a single-part namespace`.
+
+**Root Cause:** The default Spark session uses an in-memory catalog that doesn't understand multi-part identifiers like `database.table`. The Spark session was not configured for Iceberg.
+
+**Solution:** The Spark session creation was updated to include the necessary Iceberg extensions and catalog configurations. The table creation logic was refactored to use the modern `df.writeTo(...).create()` API.
+
+### 2. `py4j.protocol.Py4JJavaError: ... Unable to load credentials` (Driver)
+
+**Problem:** After configuring the Iceberg catalog, the job failed with `software.amazon.awssdk.core.exception.SdkClientException: Unable to load credentials from any of the providers in the chain`.
+
+**Root Cause:** The AWS SDK for Java, used by Iceberg to communicate with MinIO, could not find any access credentials. The Hadoop-specific properties (`spark.hadoop.fs.s3a.access.key`) are not read by the newer AWS SDK v2 used by Iceberg's `S3FileIO`.
+
+**Solution:** The Airflow DAG (`spark_iceberg_dag.py`) was updated to pass credentials as environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) using the `env_vars` parameter of the `SparkSubmitOperator`. This allows the AWS SDK to find them automatically.
+
+### 3. Generic `createTable` Error
+
+**Problem:** The job failed with a generic error originating from `org.apache.spark.sql.catalog.Catalog.createTable`.
+
+**Root Cause:** The Spark script was still using the older, less reliable V1 data source API (`spark.catalog.createTable`) to create the Iceberg table.
+
+**Solution:** The Spark script (`iceberg_spark.py`) was refactored to exclusively use the modern V2 API (`df.writeTo(...).create()` and `df.writeTo(...).append()`), which is atomic and more robust for Iceberg operations.
+
+### 4. `Unable to load credentials` (Executor)
+
+**Problem:** The job failed again with `Unable to load credentials`, but this time the error occurred in a task running on a Spark executor.
+
+**Root Cause:** Credentials configured for the Spark driver (via `env_vars`) are not automatically propagated to the Spark executor processes. Each executor runs in its own environment and needs its own credentials.
+
+**Solution:** The Airflow DAG was updated to use the `spark.executorEnv.*` properties within the `--conf` dictionary. This correctly instructs Spark to set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables on each executor container.
+
+### 5. `The AWS Access Key Id you provided does not exist in our records`
+
+**Problem:** The job failed with a `403 Forbidden` error from S3: `The AWS Access Key Id you provided does not exist in our records`.
+
+**Root Cause:** This error message is from the real AWS S3 service, indicating the Spark job was trying to connect to `s3.amazonaws.com` instead of the local MinIO instance. Iceberg's internal S3 client (`S3FileIO`) does not automatically inherit the endpoint from the Hadoop configuration (`spark.hadoop.fs.s3a.endpoint`). It requires its own explicit endpoint configuration.
+
+**Solution:** The `ConfigManager` (`dags/utils/config_manager.py`) was updated to add the `s3.endpoint` property directly to the Iceberg catalog configuration (e.g., `spark.sql.catalog.my-catalog.s3.endpoint=http://minio:9000`). This explicitly tells Iceberg's client to use MinIO.
+
+### 6. Clarification on Credential vs. Endpoint Properties
+
+**Question:** The user correctly noted that the `s3.endpoint` property was being recognized, but the `s3.access-key` property was not.
+
+**Explanation:** This is a key subtlety. Iceberg's `S3FileIO` client (using AWS SDK v2) **does** recognize the custom `s3.endpoint` property. However, the AWS SDK v2 **does not** recognize custom credential properties like `s3.access-key`. It strictly follows its standard credential provider chain (looking for environment variables, Java properties, etc.). This is why setting `spark.executorEnv.AWS_ACCESS_KEY_ID` is the correct and necessary solution for providing credentials to executors.
+
+### 7. `DataSourceRDD` I/O Error
+
+**Problem:** The job failed with a low-level I/O error deep inside Spark's `DataSourceRDD`, indicating a problem accessing the data files.
+
+**Root Cause:** A configuration mismatch in `env.minio.example`. The `STORAGE_BUCKET` was defined as `spark-data`, but the `CATALOG_WAREHOUSE_PATH` was set to `s3a://my-catalog`. This incorrectly instructed Spark to use a bucket named `my-catalog` which did not exist.
+
+**Solution:** The `CATALOG_WAREHOUSE_PATH` was corrected to `s3a://spark-data/my-catalog`, ensuring the warehouse path pointed to a directory *inside* the correct bucket.
+
+### 8. `java.lang.AbstractMethodError`
+
+**Problem:** The job failed with `java.lang.AbstractMethodError: Receiver class ... does not define or inherit an implementation...`.
+
+**Root Cause:** This error is a classic sign of a dependency version conflict on the Spark classpath. The `--packages` list was loading multiple, incompatible versions of Iceberg libraries, specifically `iceberg-spark-runtime`, `iceberg-aws-bundle`, and the unnecessary `iceberg-hive-runtime`.
+
+**Solution:** The `packages` list in the `SparkSubmitOperator` was simplified and unified to a clean, consistent set of libraries known to be compatible.
+
+```diff
+--- a/Users/grinfeld/IdeaProjects/grinfeld/py_spark/dags/spark_iceberg_dag.py
++++ b/Users/grinfeld/IdeaProjects/grinfeld/py_spark/dags/spark_iceberg_dag.py
+@@ -43,24 +43,21 @@
+ )
+ def spark_job_dag():
+     """Airflow 3.0 DAG using task decorators."""
+-
+-    logging.info(os.getcwd())
+-    main_file = f"{os.getcwd()}/dags/spark/iceberg_spark.py"
+-    logging.info(f"Got catalog config: {config_manager.get_catalog_configs()}")
+-    logging.info(f"Got catalog name: {config_manager.catalog_config.catalog_name}")
+     spark_submit = SparkSubmitOperator(
+         task_id='spark_job_submit',
+-        application=main_file,
++        # Use a path relative to the DAGs folder for robustness
++        application="spark/iceberg_spark.py",
+         name='spark_job',
+         deploy_mode='client',
+-        packages="org.apache.hadoop:hadoop-aws:3.3.4"
+-                ",software.amazon.awssdk:bundle:2.32.29"
+-                ",com.amazonaws:aws-java-sdk-bundle:1.12.262"
+-                ",org.apache.iceberg:iceberg-aws-bundle:1.4.2"
+-                ",org.apache.iceberg:iceberg-hive-runtime:1.4.2"
+-                ",org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2"
+-        ,
++        # Use a clean, unified, and stable set of packages.
++        # - All iceberg versions are the same (1.5.0 is a known stable version).
++        # - Removed unnecessary iceberg-hive-runtime for hadoop catalog.
++        # - Removed redundant aws sdk bundles.
++        packages="org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.0,"
++                 "org.apache.iceberg:iceberg-aws-bundle:1.5.0,"
++                 "org.apache.hadoop:hadoop-aws:3.3.6",
+         conf=configs,
+         env_vars={
+             "AWS_ACCESS_KEY_ID": config_manager.storage_config.access_key,
+
+```
 ```
