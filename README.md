@@ -1,4 +1,4 @@
-# Airflow, PySpark, Iceberg: build local environment with AI (almost) 
+# Airflow, PySpark, Iceberg and DuckDB: build local environment with AI (almost) 
 
 This is attempt to create working project with AI for pySpark with Airflow and Iceberg.
 Initially, asked Cursor.ai (with Claude) to create sample project with different options using latest Airflow 3.x and Spark 4.x.
@@ -21,6 +21,8 @@ Finally, despite getting few wrong suggestions from Gemini and ChatGPT about rig
 succeeded to run airflow, to show data and to write it to minIO.
 
 Finally, simple job with Iceberg works. Good for me :).
+
+As bonus, I added simple DAG using __DuckDB__ without any spark.
 
 For more details, you can read my blog article :) [Airflow, PySpark, Iceberg: build local environment with AI (almost)](https://mikerusoft.medium.com/airflow-pyspark-iceberg-build-local-environment-with-ai-almost-6fcf608b44e2)
 <a href="https://mikerusoft.medium.com/airflow-pyspark-iceberg-build-local-environment-with-ai-almost-6fcf608b44e2" target="_new">
