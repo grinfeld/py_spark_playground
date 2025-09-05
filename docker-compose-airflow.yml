@@ -208,6 +208,7 @@ services:
     entrypoint: ["sh", "-c", "/scripts/minio-init.sh"]
     volumes:
       - ./scripts/minio-init.sh:/scripts/minio-init.sh
+      - ./data:/examples
     networks:
       - spark-network
 

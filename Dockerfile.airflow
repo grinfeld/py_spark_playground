@@ -1,5 +1,5 @@
-# Use Apache Airflow 3.0.4 as base
-FROM apache/airflow:3.0.4-python3.11
+# Use Apache Airflow 3.0.6 as base
+FROM apache/airflow:3.0.6-python3.11
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
