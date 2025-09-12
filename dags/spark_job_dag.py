@@ -47,12 +47,6 @@ def spark_job_dag():
         conn_id='spark_default',
         name='spark_job',
         deploy_mode='client',
-        packages="org.apache.hadoop:hadoop-aws:3.3.4"
-                ",software.amazon.awssdk:bundle:2.32.29"
-                # ",org.apache.iceberg:iceberg-aws-bundle:1.9.2"
-                # ",org.apache.iceberg:iceberg-hive-runtime:1.7.2"
-                # ",org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.9.2"
-        ,
         conf=configs,
         application_args=[
             "--job-name", "Simple Show Job",
