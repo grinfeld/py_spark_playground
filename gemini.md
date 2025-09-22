@@ -614,7 +614,7 @@ The following diff applies all the recommended changes.
 
 **Root Cause:** This error message is from the real AWS S3 service, indicating the Spark job was trying to connect to `s3.amazonaws.com` instead of the local MinIO instance. Iceberg's internal S3 client (`S3FileIO`) does not automatically inherit the endpoint from the Hadoop configuration (`spark.hadoop.fs.s3a.endpoint`). It requires its own explicit endpoint configuration.
 
-**Solution:** The `ConfigManager` (`dags/utils/config_manager.py`) was updated to add the `s3.endpoint` property directly to the Iceberg catalog configuration (e.g., `spark.sql.catalog.my-catalog.s3.endpoint=http://minio:9000`). This explicitly tells Iceberg's client to use MinIO.
+**Solution:** The `ConfigManager` (`dags/utils/config_manager.py`) was updated to add the `s3.endpoint` property directly to the Iceberg catalog configuration (e.g., `spark.sql.catalog.mycatalog.s3.endpoint=http://minio:9000`). This explicitly tells Iceberg's client to use MinIO.
 
 ### 6. Clarification on Credential vs. Endpoint Properties
 
@@ -626,9 +626,9 @@ The following diff applies all the recommended changes.
 
 **Problem:** The job failed with a low-level I/O error deep inside Spark's `DataSourceRDD`, indicating a problem accessing the data files.
 
-**Root Cause:** A configuration mismatch in `env.minio.example`. The `STORAGE_BUCKET` was defined as `spark-data`, but the `CATALOG_WAREHOUSE_PATH` was set to `s3a://my-catalog`. This incorrectly instructed Spark to use a bucket named `my-catalog` which did not exist.
+**Root Cause:** A configuration mismatch in `env.minio.example`. The `STORAGE_BUCKET` was defined as `spark-data`, but the `CATALOG_WAREHOUSE_PATH` was set to `s3a://mycatalog`. This incorrectly instructed Spark to use a bucket named `mycatalog` which did not exist.
 
-**Solution:** The `CATALOG_WAREHOUSE_PATH` was corrected to `s3a://spark-data/my-catalog`, ensuring the warehouse path pointed to a directory *inside* the correct bucket.
+**Solution:** The `CATALOG_WAREHOUSE_PATH` was corrected to `s3a://spark-data/mycatalog`, ensuring the warehouse path pointed to a directory *inside* the correct bucket.
 
 ### 8. `java.lang.AbstractMethodError`
 

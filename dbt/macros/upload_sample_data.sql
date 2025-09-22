@@ -1,0 +1,28 @@
+-- Macro to upload sample data to S3/MinIO
+-- This macro can be used to upload the sample CSV data as parquet to your storage
+
+{% macro upload_sample_data() %}
+  {% set upload_sql %}
+    -- Create a temporary view from the CSV data
+    CREATE OR REPLACE TEMPORARY VIEW temp_customers AS
+    SELECT * FROM VALUES
+    (1, 'Acme Corp', 'John', 'Doe', 'john.doe@acme.com', '555-0101', '123 Main St', 'New York', 'NY', '10001', 'USA', 'Software Engineer', 'Engineering', 75000, '2023-01-15'),
+    (2, 'Tech Solutions', 'Jane', 'Smith', 'jane.smith@techsolutions.com', '555-0102', '456 Oak Ave', 'San Francisco', 'CA', '94102', 'USA', 'Data Scientist', 'Analytics', 85000, '2023-02-20'),
+    (3, 'Acme Corp', 'Bob', 'Johnson', 'bob.johnson@acme.com', '555-0103', '789 Pine St', 'New York', 'NY', '10001', 'USA', 'Product Manager', 'Product', 90000, '2023-03-10'),
+    (4, 'Global Inc', 'Alice', 'Williams', 'alice.williams@global.com', '555-0104', '321 Elm St', 'Chicago', 'IL', '60601', 'USA', 'Marketing Manager', 'Marketing', 70000, '2023-04-05'),
+    (5, 'Tech Solutions', 'Charlie', 'Brown', 'charlie.brown@techsolutions.com', '555-0105', '654 Maple Dr', 'San Francisco', 'CA', '94102', 'USA', 'DevOps Engineer', 'Engineering', 80000, '2023-05-12'),
+    (6, 'Acme Corp', 'Diana', 'Davis', 'diana.davis@acme.com', '555-0106', '987 Cedar Ln', 'New York', 'NY', '10001', 'USA', 'UX Designer', 'Design', 65000, '2023-06-18'),
+    (7, 'StartupXYZ', 'Mike', 'Wilson', 'mike.wilson@startupxyz.com', '555-0107', '147 Birch St', 'Austin', 'TX', '73301', 'USA', 'CEO', 'Executive', 120000, '2023-07-01'),
+    (8, 'Global Inc', 'Sarah', 'Miller', 'sarah.miller@global.com', '555-0108', '258 Spruce Ave', 'Chicago', 'IL', '60601', 'USA', 'HR Manager', 'Human Resources', 68000, '2023-08-15'),
+    (9, 'Tech Solutions', 'Tom', 'Garcia', 'tom.garcia@techsolutions.com', '555-0109', '369 Walnut St', 'San Francisco', 'CA', '94102', 'USA', 'Backend Developer', 'Engineering', 78000, '2023-09-20'),
+    (10, 'Acme Corp', 'Lisa', 'Martinez', 'lisa.martinez@acme.com', '555-0110', '741 Cherry Dr', 'New York', 'NY', '10001', 'USA', 'Frontend Developer', 'Engineering', 72000, '2023-10-10')
+    AS t(Index, Company, First_Name, Last_Name, Email, Phone, Address, City, State, Zip_Code, Country, Job_Title, Department, Salary, Start_Date);
+    
+    -- Write to parquet in S3/MinIO
+    INSERT OVERWRITE DIRECTORY '{{ env_var("RAW_DATA_PATH") }}'
+    USING PARQUET
+    SELECT * FROM temp_customers;
+  {% endset %}
+  
+  {{ upload_sql }}
+{% endmacro %}

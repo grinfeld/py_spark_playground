@@ -1,0 +1,79 @@
+version: 2
+
+sources:
+  - name: raw_data
+    description: "Raw data sources from S3/MinIO"
+    tables:
+      - name: customers
+        description: "Customer data from parquet files"
+        location: "{{ env_var('RAW_DATA_PATH') }}"
+        columns:
+          - name: Index
+            description: "Unique customer identifier"
+            tests:
+              - unique
+              - not_null
+          - name: Company
+            description: "Company name"
+            tests:
+              - not_null
+          - name: First_Name
+            description: "Customer first name"
+          - name: Last_Name
+            description: "Customer last name"
+          - name: Email
+            description: "Customer email address"
+          - name: Phone
+            description: "Customer phone number"
+          - name: Address
+            description: "Customer address"
+          - name: City
+            description: "Customer city"
+          - name: State
+            description: "Customer state"
+          - name: Zip_Code
+            description: "Customer zip code"
+          - name: Country
+            description: "Customer country"
+          - name: Job_Title
+            description: "Customer job title"
+          - name: Department
+            description: "Customer department"
+          - name: Salary
+            description: "Customer salary"
+          - name: Start_Date
+            description: "Customer start date"
+
+models:
+  - name: stg_customers
+    description: "Staged customer data with data quality checks"
+    columns:
+      - name: Index
+        description: "Unique customer identifier"
+        tests:
+          - unique
+          - not_null
+      - name: Company
+        description: "Company name"
+        tests:
+          - not_null
+      - name: full_name
+        description: "Concatenated first and last name"
+      - name: email_status
+        description: "Email validation status"
+      - name: start_date_parsed
+        description: "Parsed start date"
+
+  - name: company_employee_count
+    description: "Aggregated employee count by company"
+    columns:
+      - name: company
+        description: "Company name"
+        tests:
+          - not_null
+      - name: number_of_employees
+        description: "Total number of employees per company"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1

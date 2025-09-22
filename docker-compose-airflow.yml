@@ -8,7 +8,9 @@ x-airflow-common:
     - ./env.minio.example
   environment:
     &airflow-common-env
+    AIRFLOW__SECRETS__SENSITIVE_FIELDS: "STORAGE_SECRET_KEY,STORAGE_ACCESS_KEY_ID"
     AIRFLOW_CONN_SPARK_DEFAULT: spark://@spark-master:7077
+    AIRFLOW_CONN_DBT_SSH: "ssh://root:123456789@dbt?extra__ssh__key_file=/home/airflow/.ssh/id_rsa&extra__ssh__no_host_key_check=true"
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CORE__FERNET_KEY: ''
@@ -26,6 +28,7 @@ x-airflow-common:
     # PySpark and Java environment
     SPARK_HOME: /opt/spark
     SPARK_MASTER_URL: spark://spark-master:7077
+    SPARK_CONNECTION_METHOD: "session"
   depends_on:
     - postgres
   volumes:
@@ -39,6 +42,28 @@ x-airflow-common:
     - ./spark-logs:/opt/spark/logs
   networks:
     - spark-network
+
+---
+x-dbt-common:
+  &dbt-common
+  build:
+    context: .
+    dockerfile: Dockerfile.dbt
+  env_file:
+    - ./env.minio.example
+  ports:
+    - "8082:8080"
+  environment:
+    RAW_DATA_PATH: "s3a://examples/customers-100000.csv"
+    SPARK_CONNECTION_METHOD: "session"
+    SPARK_MASTER_URL: spark://spark-master:7077
+  networks:
+    - spark-network
+  volumes:
+    - ./events:/opt/spark/events
+    - ./spark-logs:/opt/spark/logs
+#  entrypoint: >
+#    sh -c "service ssh start && sleep infinity"
 
 ---
 x-spark-common:
@@ -59,6 +84,7 @@ x-spark-common:
     - ./data:/app/data:ro
     - ./events:/opt/spark/events
     - ./spark-logs:/opt/spark/logs
+    - ./ivy:/home/spark/.ivy2
   networks:
     - spark-network
   restart: unless-stopped
@@ -290,6 +316,14 @@ services:
     command: -c "/opt/spark/sbin/start-history-server.sh; tail -f /dev/null"
     ports:
       - '18080:18080'
+
+  dbt:
+    <<: *dbt-common
+    container_name: dbt
+    hostname: dbt
+    depends_on:
+      - spark-master
+      - minio
 
 volumes:
   postgres-db-volume:

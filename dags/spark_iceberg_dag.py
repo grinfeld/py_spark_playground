@@ -50,13 +50,6 @@ def spark_job_dag():
         conn_id='spark_default',
         name='spark_job',
         deploy_mode='client',
-        packages="org.apache.hadoop:hadoop-aws:3.3.4"
-                ",software.amazon.awssdk:bundle:2.32.29"
-                ",com.amazonaws:aws-java-sdk-bundle:1.12.262"
-                ",org.apache.iceberg:iceberg-aws-bundle:1.4.2"
-                ",org.apache.iceberg:iceberg-hive-runtime:1.4.2"
-                ",org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2"
-        ,
         conf=configs,
         env_vars={
             "AWS_ACCESS_KEY_ID": config_manager.storage_config.access_key,
