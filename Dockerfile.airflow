@@ -1,5 +1,9 @@
+FROM apache/spark:4.0.0-python3 AS build
+
 # Use Apache Airflow 3.0.6 as base
-FROM apache/airflow:3.0.6-python3.11
+FROM apache/airflow:3.0.6-python3.11 AS runtime
+
+COPY --from=build /opt/spark/ /opt/spark/
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -12,13 +16,27 @@ RUN apt-get update && apt-get install -y \
     openjdk-17-jdk \
     wget \
     curl \
+    net-tools iputils-ping \
+    openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Download and install Apache Spark 3.5.6
-RUN wget -q https://archive.apache.org/dist/spark/spark-3.5.6/spark-3.5.6-bin-hadoop3.tgz \
-    && tar -xzf spark-3.5.6-bin-hadoop3.tgz \
-    && mv spark-3.5.6-bin-hadoop3 /opt/spark/ \
-    && rm spark-3.5.6-bin-hadoop3.tgz
+# Create .ssh directory for airflow user, set ownership/permissions, copy key, and set key permissions
+RUN mkdir -p /home/airflow/.ssh && \
+    chown airflow:root /home/airflow/.ssh && \
+    chmod 700 /home/airflow/.ssh
+COPY --chown=airflow:root dockerkey /home/airflow/.ssh/id_rsa
+RUN chmod 600 /home/airflow/.ssh/id_rsa
+
+# Download Iceberg and Glue JARs
+RUN mkdir -p /opt/spark/jars/iceberg \
+    && cd /opt/spark/jars/iceberg \
+    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-4.0_2.13/1.10.0/iceberg-spark-runtime-4.0_2.13-1.10.0.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/1.10.0/iceberg-aws-bundle-1.10.0.jar \
+    && wget -q https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.33.11/bundle-2.33.11.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.4.1/hadoop-aws-3.4.1.jar \
+    && cp *.jar /opt/spark/jars/ && chown -R airflow:root /opt/spark/jars/
+# Still there is no iceberg-hive-runtime 1.10.0. The latest one is 1.7.2 and it's messing the aws dependencies
+#    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-hive-runtime/1.4.2/iceberg-hive-runtime-1.7.2.jar \
 
 USER airflow
 
@@ -29,15 +47,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 # Create directories for logs
 RUN mkdir -p /opt/airflow/logs
 
-# RUN mkdir -p /tmp/sparks/
-# RUN mkdir -p /opt/airflow/packages
-
-# COPY sparks/ /tmp/sparks/
-
 COPY spark-defaults.conf "/opt/spark/conf/spark-defaults.conf"
-
-# RUN cd /tmp/sparks/ && python -m build
-# RUN cp /tmp/sparks/dist/sparks*.whl /opt/airflow/packages/sparks.whl
 
 # Set working directory
 WORKDIR /opt/airflow

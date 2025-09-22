@@ -15,5 +15,4 @@ def generate_dag():
 
     extract()
 
-
 generate_dag()

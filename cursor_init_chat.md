@@ -14423,7 +14423,7 @@ python main.py       # Via main entry point
 **Custom SparkSession:**
 ```python
 from spark_job import create_spark_session
-spark = create_spark_session("MyApp", "my_catalog")
+spark = create_spark_session("MyApp", "mycatalog")
 ```
 
 ### ** Validation:**
@@ -14504,7 +14504,7 @@ python main.py       # Via main entry point
 
 ```python
 from spark_job import create_spark_session
-spark = create_spark_session("MyApp", "my_catalog")
+spark = create_spark_session("MyApp", "mycatalog")
 ```
 
 ```shellscript

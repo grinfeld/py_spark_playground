@@ -1,0 +1,41 @@
+name: 'spark_iceberg_app'
+version: '1.0.0'
+config-version: 2
+
+# This setting configures which "profile" dbt uses for this project.
+profile: 'hadoop'  # Change to 'glue' or 'hive' as needed
+
+# These configurations specify where dbt should look for different types of files.
+model-paths: ["models"]
+analysis-paths: ["analysis"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"  # directory which will store compiled SQL files
+clean-targets:         # directories to be removed by `dbt clean`
+  - "target"
+  - "dbt_packages"
+
+# This hook to do some work before. Here I am printing some env vars and spark.* configs
+on-run-start:
+  - "{{ log_effective_conf() }}"
+
+# Configuring models
+models:
+  spark_iceberg_app:
+    # This +schema config tells dbt where to build all models.
+    +schema: "{{ env_var('SCHEMA_CUSTOMERS') }}"
+    staging:
+      +materialized: table
+      +file_format: iceberg
+    marts:
+      +materialized: table
+      +file_format: iceberg
+
+# Configuring seeds
+#seeds:
+#  spark_iceberg_app:
+#    +file_format: parquet
+#    +location_root: "s3a://{{ env_var('STORAGE_BUCKET') }}/dbt/seeds"

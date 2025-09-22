@@ -1,0 +1,168 @@
+# Unified dbt profiles for Glue, Hadoop, and Hive catalogs
+# Usage: dbt run --profiles-dir dbt/profiles --profile [glue|hadoop|hive]
+
+# AWS Glue Catalog Profile
+glue:
+  target: dev
+  outputs:
+    # Common configuration for Glue outputs
+    _common: &glue_common
+      type: spark
+      method: glue
+      schema: "{{ env_var('SCHEMA_CUSTOMERS') }}"
+      glue_warehouse: "{{ env_var('CATALOG_WAREHOUSE_NAME') }}"
+      region: "{{ env_var('AWS_REGION') }}"
+      # Glue-specific configurations
+      glue_version: "4.0"
+      # Connection settings Glue end-point
+      host: "{{ env_var('CATALOG_WAREHOUSE_PATH', 'glue.us-east-1.amazonaws.com') }}"
+      port: 443
+      # Authentication (uses AWS credentials from environment)
+      # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY should be set in environment
+      # or use IAM roles for authentication
+      # NOTE!!!!: Actually those parameters are not relevant when using the thrift method
+      # since thrift client don't send spark-configuration to thrift server. Bad news.
+      # in case of http, odbc and other methods - it should work. I hope.
+      server_side_parameters:
+        # --- Catalog Configuration ---
+        # NOTE: The catalog name 'mycatalog' is static for this profile.
+        # You cannot use Jinja in the configuration keys.
+        "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
+        "spark.sql.catalog.mycatalog.type": "glue"
+        # --- S3A Connector Configuration ---
+        "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem"
+        "spark.hadoop.fs.s3a.endpoint": "{{ env_var('STORAGE_ENDPOINT') }}"
+        "spark.hadoop.fs.s3a.access.key": "{{ env_var('STORAGE_ACCESS_KEY_ID') }}"
+        "spark.hadoop.fs.s3a.secret.key": "{{ env_var('STORAGE_SECRET_KEY') }}"
+        "spark.hadoop.aws.region": "{{ env_var('AWS_REGION') }}"
+        "spark.hadoop.fs.s3a.path.style.access": "{{ env_var('STORAGE_PATH_STYLE_ACCESS', 'true') }}"
+        "spark.hadoop.fs.s3a.connection.ssl.enabled": "{{ env_var('STORAGE_SSL_ENABLED', 'false') }}"
+        # --- General Spark Performance Tuning ---
+        "spark.sql.adaptive.skewJoin.enabled": "true"
+        "spark.sql.adaptive.localShuffleReader.enabled": "true"
+        "spark.sql.adaptive.optimizeSkewedJoin.enabled": "true"
+        "spark.sql.adaptive.forceApply": "true"
+        "spark.sql.adaptive.enabled": "true"
+        "spark.sql.adaptive.coalescePartitions.enabled": "true"
+
+    dev:
+      <<: *glue_common
+      threads: 4
+
+    prod:
+      <<: *glue_common
+      threads: 8
+
+# Hadoop Catalog Profile (S3/MinIO based)
+hadoop:
+  target: dev
+  outputs:
+    # Common configuration for Hadoop outputs
+    _common: &hadoop_common
+      type: spark
+      method: "{{ env_var('SPARK_CONNECTION_METHOD', 'thrift') }}"
+      schema: "{{ env_var('SCHEMA_CUSTOMERS') }}"
+      # Default host should be the service name in Docker Compose
+      host: "{{ env_var('SPARK_CONN_HOST', 'spark-thrift-server') }}"
+      port: "{{ env_var('SPARK_CONN_PORT', 10000) | int }}"
+      # All Spark and Hadoop settings must be placed inside spark_config.
+      # Non-standard keys like 's3_endpoint' at the top level are ignored.
+      # NOTE!!!!: Actually those parameters are not relevant when using the thrift method
+      # since thrift client don't send spark-configuration to thrift server. Bad news.
+      # in case of http, odbc and other methods - it should work. I hope.
+      server_side_parameters:
+        # --- Catalog Configuration ---
+        # NOTE: The catalog name 'mycatalog' is static for this profile.
+        # You cannot use Jinja in the configuration keys.
+        "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
+        "spark.sql.defaultCatalog": "mycatalog"
+        "spark.sql.catalog.mycatalog.type": "hadoop"
+        "spark.sql.catalog.mycatalog.warehouse": "{{ env_var('CATALOG_WAREHOUSE_PATH') }}"
+        "spark.sql.catalog.mycatalog.io-impl": "{{ env_var('CATALOG_IO_IMPL', 'org.apache.iceberg.aws.s3.S3FileIO') }}"
+        "spark.sql.catalog.mycatalog.default-namespace": "{{ env_var('SCHEMA_CUSTOMERS') }}"
+        "spark.sql.catalog.mycatalog": "org.apache.iceberg.spark.SparkCatalog"
+
+        # Iceberg S3FileIO (AWS SDK v2) — these are REQUIRED for MinIO
+        "spark.sql.catalog.mycatalog.s3.endpoint": "{{ env_var('STORAGE_ENDPOINT') }}"
+        "spark.sql.catalog.mycatalog.s3.path-style-access": "{{ env_var('STORAGE_PATH_STYLE_ACCESS', 'true') }}"
+        "spark.sql.catalog.mycatalog.s3.access-key-id": "{{ env_var('STORAGE_ACCESS_KEY_ID') }}"
+        "spark.sql.catalog.mycatalog.s3.secret-access-key": "{{ env_var('STORAGE_SECRET_KEY') }}"
+        "spark.sql.catalog.mycatalog.s3.signing-region": "{{ env_var('AWS_REGION', 'us-east-1') }}"
+        # (Optional) if you ever set https endpoint but want to force http
+        # "spark.sql.catalog.mycatalog.s3.ssl-enabled": "false"
+        # --- S3A Connector Configuration ---
+        "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem"
+        "spark.hadoop.fs.s3a.endpoint": "{{ env_var('STORAGE_ENDPOINT') }}"
+        "spark.hadoop.fs.s3a.access.key": "{{ env_var('STORAGE_ACCESS_KEY_ID') }}"
+        "spark.hadoop.fs.s3a.secret.key": "{{ env_var('STORAGE_SECRET_KEY') }}"
+        "spark.hadoop.aws.region": "{{ env_var('AWS_REGION') }}"
+        "spark.hadoop.fs.s3a.path.style.access": "{{ env_var('STORAGE_PATH_STYLE_ACCESS', 'true') }}"
+        "spark.hadoop.fs.s3a.connection.ssl.enabled": "{{ env_var('STORAGE_SSL_ENABLED', 'false') }}"
+        # --- General Spark Performance Tuning ---
+        "spark.sql.adaptive.skewJoin.enabled": "true"
+        "spark.sql.adaptive.localShuffleReader.enabled": "true"
+        "spark.sql.adaptive.optimizeSkewedJoin.enabled": "true"
+        "spark.sql.adaptive.forceApply": "true"
+        "spark.sql.adaptive.enabled": "true"
+        "spark.sql.adaptive.coalescePartitions.enabled": "true"
+    
+    dev:
+      <<: *hadoop_common
+      threads: 4
+      
+    prod:
+      <<: *hadoop_common
+      threads: 8
+
+# Hive Metastore Catalog Profile
+hive:
+  target: dev
+  outputs:
+    # Common configuration for Hive outputs
+    _common: &hive_common
+      type: spark
+      method: thrift
+      schema: "{{ env_var('SCHEMA_CUSTOMERS') }}"
+      host: "{{ env_var('HIVE_METASTORE_HOST', 'localhost') }}"
+      port: "{{ env_var('HIVE_METASTORE_PORT', '9083') }}"
+      # Hive metastore configuration
+      database: "{{ env_var('CATALOG_WAREHOUSE_NAME') }}"
+      # Storage configuration (can be S3, HDFS, etc.)
+      warehouse_path: "env_var('CATALOG_WAREHOUSE_PATH')"
+      # Spark configuration for Hive catalog
+      # NOTE!!!!: Actually those parameters are not relevant when using the thrift method
+      # since thrift client don't send spark-configuration to thrift server. Bad news.
+      # in case of http, odbc and other methods - it should work. I hope.
+      spark_config:
+        "spark.sql.catalog.mycatalog.type": "hive"
+        "spark.sql.catalog.mycatalog.warehouse": "{{ env_var('CATALOG_WAREHOUSE_PATH', '/user/hive/warehouse') }}"
+        "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
+        "spark.sql.catalog.mycatalog.io-impl": "{{ env_var('CATALOG_IO_IMPL', 'org.apache.iceberg.hadoop.HadoopFileIO') }}"
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer"
+        # --- S3A Connector Configuration ---
+        "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem"
+        "spark.hadoop.fs.s3a.endpoint": "{{ env_var('STORAGE_ENDPOINT') }}"
+        "spark.hadoop.fs.s3a.access.key": "{{ env_var('STORAGE_ACCESS_KEY_ID') }}"
+        "spark.hadoop.fs.s3a.secret.key": "{{ env_var('STORAGE_SECRET_KEY') }}"
+        "spark.executorEnv.AWS_ACCESS_KEY_ID": "{{ env_var('STORAGE_ACCESS_KEY_ID') }}"
+        "spark.executorEnv.AWS_SECRET_ACCESS_KEY": "{{ env_var('STORAGE_SECRET_KEY') }}"
+        "spark.hadoop.aws.region": "{{ env_var('AWS_REGION') }}"
+        "spark.hadoop.fs.s3a.path.style.access": "{{ env_var('STORAGE_PATH_STYLE_ACCESS', 'true') }}"
+        "spark.hadoop.fs.s3a.connection.ssl.enabled": "{{ env_var('STORAGE_SSL_ENABLED', 'false') }}"
+        # --- General Spark Performance Tuning ---
+        "spark.sql.adaptive.skewJoin.enabled": "true"
+        "spark.sql.adaptive.localShuffleReader.enabled": "true"
+        "spark.sql.adaptive.optimizeSkewedJoin.enabled": "true"
+        "spark.sql.adaptive.forceApply": "true"
+        "spark.sql.adaptive.enabled": "true"
+        "spark.sql.adaptive.coalescePartitions.enabled": "true"
+        # Hive metastore connection
+        "spark.sql.catalog.mycatalog.uri": "thrift://{{ env_var('HIVE_METASTORE_HOST', 'localhost') }}:{{ env_var('HIVE_METASTORE_PORT', '9083') }}"
+
+    dev:
+      <<: *hive_common
+      threads: 4
+
+    prod:
+      <<: *hive_common
+      threads: 8

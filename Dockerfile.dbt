@@ -1,0 +1,55 @@
+FROM apache/spark:4.0.0-python3 AS build
+
+FROM python:3.11-slim-bullseye AS runtime
+
+COPY --from=build /opt/spark/ /opt/spark/
+
+ENV SPARK_HOME=/opt/spark
+ENV PATH=$PATH:$SPARK_HOME/bin
+
+RUN apt-get update \
+    && apt-get dist-upgrade -y \
+    && apt-get install -y --no-install-recommends openjdk-17-jdk wget curl procps openssh-server net-tools iputils-ping vim \
+    && apt-get clean \
+    && rm -rf \
+      /var/lib/apt/lists/* \
+      /tmp/* \
+      /var/tmp/*
+
+# Download Iceberg and Glue JARs
+RUN mkdir -p /opt/spark/jars/iceberg \
+    && cd /opt/spark/jars/iceberg \
+    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-4.0_2.13/1.10.0/iceberg-spark-runtime-4.0_2.13-1.10.0.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/1.10.0/iceberg-aws-bundle-1.10.0.jar \
+    && wget -q https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.33.11/bundle-2.33.11.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.4.1/hadoop-aws-3.4.1.jar \
+    && cp *.jar /opt/spark/jars/ && chown -R root:root /opt/spark/
+
+RUN python -m pip install --no-cache-dir dbt-core dbt-spark[PyHive] dbt-spark[session]
+
+RUN python -m pip install --no-cache-dir pyspark==4.0.0
+
+COPY /dbt /dbt
+
+# ---- the following part don't use in production, since it's only for dev environment. It compromises security in many way
+# using generating public/private key connection for dev environment
+# Create .ssh directory and set permissions
+RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
+COPY ./dockerkey.pub /root/.ssh/authorized_keys
+# Set correct permissions for SSH key
+RUN chmod 600 /root/.ssh/authorized_keys
+RUN sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config && \
+    sed -i 's/UsePAM yes/UsePAM no/' /etc/ssh/sshd_config && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+# ---- end of permissions part
+
+RUN sed -i 's/#PermitUserEnvironment no/PermitUserEnvironment yes/' /etc/ssh/sshd_config
+
+COPY scripts/start_dbt.sh /start_dbt.sh
+
+COPY spark-defaults.conf "/opt/spark/conf/spark-defaults.conf"
+
+ENTRYPOINT ["sh", "-c", "/start_dbt.sh"]
+
+EXPOSE 22
