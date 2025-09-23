@@ -7,7 +7,7 @@ This module provides a unified interface for different storage backends
 
 import os
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 from dataclasses import dataclass
 from abc import ABC
 
@@ -301,6 +301,9 @@ class ConfigManager:
     def get_storage_config(self) -> Dict[str, str]:
         """Get warehouse paths for the current storage backend."""
         return self.storage_backend.get_spark_storage_config()
+
+    def get_all_configs(self) -> Dict[str, str]:
+        return {**self.get_spark_configs(), **self.get_catalog_configs(), **self.get_storage_config()}
 
 # Global config manager instance
 config_manager = ConfigManager()

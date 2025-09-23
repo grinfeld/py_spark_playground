@@ -20,7 +20,7 @@ uuid = str(uuid.uuid4())
     #    schedule=timedelta(hours=1),
     start_date=datetime(2024, 1, 1),
     catchup=False,
-    tags=['duckdb', 's3', 'iceberg'],
+    tags=['duckdb', 's3', 'iceberg', 'docker-compose', 'k8s'],
     default_args={}
 )
 def duck_db_dag():
