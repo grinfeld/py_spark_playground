@@ -21,7 +21,7 @@ dbt transforms raw data into analytics-ready datasets using SQL and Jinja templa
 Before using dbt in this project, ensure you have:
 
 1. **dbt-core** with **dbt-spark** adapter installed (see [Dockerfile.dbt](../Dockerfile.dbt))
-2. **Apache Spark** cluster or Spark Thrift Server running or Kubernetes Cluster
+2. **Apache Spark** cluster, Spark Thrift Server, or a Kubernetes Cluster
 3. **Apache Iceberg** libraries available in Spark  (see [Dockerfile.spark](../Dockerfile.spark))
 4. **Access to object storage**: MinIO or AWS S3
 5. **Catalog service**: AWS Glue or Hadoop-compatible catalog
@@ -80,7 +80,7 @@ Uses Hadoop-compatible catalog with MinIO or S3 storage.
 
 #### 2. Glue Profile (AWS Glue Catalog)
 
-**Disclaimer:** Honestly, I haven't tested this configuration, so may be, you'll need to adjust some configuration  
+**Disclaimer:** Honestly, I haven't tested this configuration, so you'll need to adjust some configuration  
 
 Uses AWS Glue Data Catalog with Iceberg tables on S3.
 
@@ -92,7 +92,7 @@ Uses AWS Glue Data Catalog with Iceberg tables on S3.
 
 #### 3. Hive Profile (Hive Catalog)
 
-**Disclaimer:** Honestly, I haven't tested this configuration, so may be, you'll need to adjust some configuration
+**Disclaimer:** Honestly, I haven't tested this configuration, so you may need to adjust some configuration
 
 Uses Hive Catalog with Iceberg tables on S3.
 
@@ -149,20 +149,19 @@ For **Docker/Kubernetes**, environment variables should be configured in:
 
 ## Usage
 
-It's part of the project, so it's built with docker:
+It's part of the project, so it's built with Docker:
 1. [docker-compose-airflow.yml](../docker-compose-airflow.yml)
 2. [k8s and helm](../helm)
 
-__Note:__ I didn't add support for running dbt locally on machine, 
- but you can do this easily (hahaha) by adding all relevant env variables on your machine, add spark-cluster, minIO, etc and run dbt command.
+__Note:__ I didn't add support for running dbt locally on the machine, but you can do this easily (hahaha) by adding all relevant env variables on your machine, add spark-cluster, minIO, etc, and run the dbt command.
 You can try: ``export $(cat env.minio.example | xargs)``
 
 ## [Dockerfile.dbt](../Dockerfile.dbt)
 
-the [Dockerfile.dbt](../Dockerfile.dbt) looks little bit complicated. The reason was I wanted to re-use [Dockerfile.dbt](../Dockerfile.dbt) for 
+the [Dockerfile.dbt](../Dockerfile.dbt) looks little bit complicated. The reason was that I wanted to reuse [Dockerfile.dbt](../Dockerfile.dbt) for 
  both [docker-compose](../docker-compose-airflow.yml) and [k8s](../helm) use cases.
 
-So for using Airflow and DBT in [docker-compose](../docker-compose-airflow.yml), I needed to allow using ssh.
+So, for using Airflow and DBT in [docker-compose](../docker-compose-airflow.yml), I needed to enable using SSH.
 
 This part in [Dockerfile.dbt](../Dockerfile.dbt) , please, never do it in such way
 ```dockerfile
@@ -194,7 +193,7 @@ and the same reason why I created [start_dbt.sh](../scripts/start_dbt.sh) - scri
 ## spark configuration
 
 I made the [profiles](profiles.yml) more complicated, but if you want to run it only with [docker-compose](../docker-compose-airflow.yml), 
-you don't need all these code `spark.kubernetes` prefix, just remove all this from the file:
+you don't need all this code `spark.kubernetes` prefix, just remove all this from the file:
 ```yaml
         "spark.master": "{{ env_var('SPARK_MASTER_URL') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'spark://spark-master:7077' }}"
         # --- K8s configuration not empty only if SPARK_MASTER_URL starts with k8s:// ---
@@ -213,7 +212,7 @@ you don't need all these code `spark.kubernetes` prefix, just remove all this fr
         "spark.eventLog.enabled": "{{ 'false' if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'true' }}"
 ```
 
-but if you run Airflow and DBT from kubernetes only, maybe better to remove all Ninja `if`s from section above and leave hardcoded parameters and/or values from env variables.
+But if you run Airflow and DBT from Kubernetes only, maybe it's better to remove all Ninja `if`s from the section above and leave hardcoded parameters and/or values from env variables.
 
 ## Models
 
@@ -224,7 +223,7 @@ Staging models perform initial data cleaning and standardization:
 - **stg_customers.sql**: Transforms raw customer data
   - Cleans and validates customer records
   - Standardizes field names and types
-  - Materialized as Iceberg table
+  - Materialized as an Iceberg table
 
 ### Marts Layer (`models/marts/`)
 
@@ -233,7 +232,7 @@ Marts models contain business logic and aggregations:
 - **company_employee_count.sql**: Aggregates employee counts by company
   - Joins customer and company data
   - Calculates metrics
-  - Materialized as Iceberg table
+  - Materialized as an Iceberg table
 
 ## Macros
 
@@ -269,7 +268,7 @@ dbt runs are orchestrated by Airflow DAGs (see `dags/dbt_k8s_dag.py`). The DAG:
 
 #### Issue: "Not enough permissions in k8s cluster"
 
-Actually, this one can appear in many faces. 
+Actually, this one can appear in many forms. 
 
 **Solution**: You need to ensure that you have all relevant permissions for pods, services, logs, etc and create, update, patch and so on. I mean Good luck with this.
 
@@ -291,7 +290,7 @@ SHOW DATABASES;
 #### Issue: "S3 Access Denied" or "MinIO Connection Error"
 **Solution**:
 1. Verify storage credentials in environment variables
-2. Check bucket exists and is accessible
+2. Check the bucket exists and is accessible
 3. Verify endpoint URL is correct (include protocol: `http://` or `https://`)
 
 #### Issue: "Iceberg table format not supported"
@@ -324,7 +323,7 @@ cat target/compiled/spark_iceberg_app/models/staging/stg_customers.sql
 dbt run --profiles-dir . --debug
 ```
 
-This provides verbose output including SQL statements and Spark logs.
+This provides verbose output, including SQL statements and Spark logs.
 
 #### 4. Check Spark Logs
 
