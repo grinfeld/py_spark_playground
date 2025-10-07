@@ -1,0 +1,51 @@
+{
+  "type": "Python",
+  "sparkVersion": "4.0.0",
+  "mainApplicationFile": "local:///opt/spark/examples/src/main/python/pi.py",
+  "mode": "cluster",
+  "image": "py-spark-spark",
+  "imagePullPolicy": "IfNotPresent",
+  "deps": {
+    "jars": []
+  },
+  "restartPolicy": {
+    "type": "OnFailure",
+    "onFailureRetries": 5,
+    "onFailureRetryInterval": 60,
+    "onSubmissionFailureRetries": 10,
+    "onSubmissionFailureRetryInterval": 30
+  },
+  "driver": {
+    "cores": 1,
+    "memory": "1g",
+    "serviceAccount": "spark",
+    "labels": {
+      "version": "4.0.0"
+    },
+    "envVars": {},
+    "envFrom": [],
+    "volumeMounts": [],
+    "volumes": []
+  },
+  "executor": {
+    "cores": 1,
+    "instances": 3,
+    "memory": "2g",
+    "labels": {
+      "version": "4.0.0"
+    },
+    "envVars": {},
+    "volumeMounts": []
+  },
+  "monitoring": {
+    "exposeDriverMetrics": false,
+    "exposeExecutorMetrics": false,
+    "prometheus": {
+      "jmxExporterJar": "/opt/spark/jars/prometheus-jmx-exporter.jar",
+      "configFile": "/etc/metrics/conf.yaml",
+      "port": 8090
+    }
+  },
+  "sparkConf": {},
+  "hadoopConf": {}
+}

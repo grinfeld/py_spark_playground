@@ -1,9 +1,13 @@
-FROM apache/spark:4.0.0-python3 AS build
+ARG PY_SPARK_VERSION
 
-# Use Apache Airflow 3.0.6 as base
-FROM apache/airflow:3.0.6-python3.11 AS runtime
+FROM py-spark-spark:${PY_SPARK_VERSION} AS build
 
-COPY --from=build /opt/spark/ /opt/spark/
+# Use Apache Airflow 3.1.0 as base
+FROM apache/airflow:3.1.0-python3.11 AS runtime
+
+COPY --chown=airflow:root --from=build /opt/spark/ /opt/spark/
+COPY --chown=airflow:root --from=build /home/spark/ /home/spark/
+COPY --chown=airflow:root --from=build /spark/ /spark/
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -27,18 +31,9 @@ RUN mkdir -p /home/airflow/.ssh && \
 COPY --chown=airflow:root dockerkey /home/airflow/.ssh/id_rsa
 RUN chmod 600 /home/airflow/.ssh/id_rsa
 
-# Download Iceberg and Glue JARs
-RUN mkdir -p /opt/spark/jars/iceberg \
-    && cd /opt/spark/jars/iceberg \
-    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-4.0_2.13/1.10.0/iceberg-spark-runtime-4.0_2.13-1.10.0.jar \
-    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/1.10.0/iceberg-aws-bundle-1.10.0.jar \
-    && wget -q https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.33.11/bundle-2.33.11.jar \
-    && wget -q https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.4.1/hadoop-aws-3.4.1.jar \
-    && cp *.jar /opt/spark/jars/ && chown -R airflow:root /opt/spark/jars/
-# Still there is no iceberg-hive-runtime 1.10.0. The latest one is 1.7.2 and it's messing the aws dependencies
-#    && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-hive-runtime/1.4.2/iceberg-hive-runtime-1.7.2.jar \
-
 USER airflow
+
+COPY dags/ "/opt/airflow/dags"
 
 # Install Python dependencies
 COPY requirements.txt /tmp/requirements.txt
@@ -47,7 +42,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 # Create directories for logs
 RUN mkdir -p /opt/airflow/logs
 
-COPY spark-defaults.conf "/opt/spark/conf/spark-defaults.conf"
+COPY helm/templates/dbt_template.yaml "/dbt/templates/dbt_template.yaml"
 
 # Set working directory
 WORKDIR /opt/airflow

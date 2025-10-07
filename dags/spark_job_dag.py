@@ -4,7 +4,7 @@ Airflow 3.0 for Spark job using modern decorators
 import logging
 import os
 from datetime import datetime
-from airflow.decorators import dag
+from airflow.sdk import dag
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from utils.config_manager import config_manager
 
@@ -33,7 +33,7 @@ configs.update(config_manager.get_spark_configs())
 #    schedule=timedelta(hours=1),
     start_date=datetime(2024, 1, 1),
     catchup=False,
-    tags=['spark', 's3'],
+    tags=['spark', 's3', 'docker-compose'],
     default_args=default_args
 )
 def spark_job_dag():
@@ -49,8 +49,8 @@ def spark_job_dag():
         deploy_mode='client',
         conf=configs,
         application_args=[
-            "--job-name", "Simple Show Job",
-            "--master", spark_master,
+            "--spark-job-name", "Simple Show Job",
+            "--spark-master-url", spark_master,
             "--output-path", f"s3a://{config_manager.storage_config.bucket}/output"
         ]
     )

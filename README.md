@@ -1,4 +1,4 @@
-# Airflow, PySpark, Iceberg and DuckDB: build local environment with AI (almost) 
+# Airflow, PySpark, Iceberg and DuckDB: build local environment with k8s or Docker Compose with AI (almost) 
 
 This is attempt to create working project with AI for pySpark with Airflow, Iceberg, DuckDB and DBT.
 
@@ -20,12 +20,15 @@ Funny things:
 
 So downgraded spark to 3.5.6.
 
-__UPDATE__: Shortly after finishing this Apache Iceberg released libraries to support spark 4.x, so I updated all dependencies.
-
 Finally, despite getting few wrong suggestions from Gemini and ChatGPT about right spark configurations, 
 succeeded to run airflow, to show data and to write it to minIO with and without Iceberg.
 
 As bonus, I added simple DAG using __DuckDB__ without any spark.
+
+__UPDATE__:
+1. Shortly after finishing this Apache Iceberg released libraries to support spark 4.x, so I updated all dependencies.
+2. Again, shortly after publishing the blog, Airflow released version 3.1.0, so I updated it. too.
+3. I decided it could be nice to make all dags to work with k8s, so I added relevant dags for k8s and added script for creating local k8s.
 
 For more details, you can read my blog article :) [Airflow, PySpark, Iceberg: build local environment with AI (almost)](https://mikerusoft.medium.com/airflow-pyspark-iceberg-build-local-environment-with-ai-almost-6fcf608b44e2)
 <a href="https://mikerusoft.medium.com/airflow-pyspark-iceberg-build-local-environment-with-ai-almost-6fcf608b44e2" target="_new">
@@ -34,22 +37,89 @@ For more details, you can read my blog article :) [Airflow, PySpark, Iceberg: bu
 
 # Detailed description for this project
 
-The entrypoint of this project is [docker-compose-airflow](docker-compose-airflow.yml).
-Start it by ``docker compose up -d --build``
-
-
-**Disclaimer:** This structure is only for learning and/or development purposes.
-To use in production - adjust it. Some of the components use an insecure approach. I added support for different profiles distinguished by environment variables, but honestly, I have never tested it. The only one that works currently is using the Iceberg Catalog of type Hadoop based on MinIO ObjectStorage.
+**Disclaimer:** 
+This structure is only for learning and/or development purposes.
+Don't use it as is in production - adjust it.
+Some of the components use an insecure approach.
+I added support for different profiles distinguished by environment variables,
+but honestly, I have never tested it except the `hadoop` with `minIO`.
 Be smart, update/change it accordingly to your requirements and needs.
 
-## Components
+## Project Overview
 
-### Let's start with Airflow
+The purpose for this project to create local/dev playground for running Airflow, Spark and DBT.
+- Workflow orchestration with Airflow
+- Distributed data processing with Spark with and without Spark
+- Data transformation and modeling with dbt
+- Lightweight analytics with DuckDB
 
-#### Services
+## Key Features
 
-Currently, I am using Airflow 3.x (started from 3.0.4 and moved 3.0.6).
-Airflow 3.x contains:
+- **Multi-Environment Support**: Run locally with Docker Compose or deploy to Kubernetes using Helm
+- **Multiple Catalog Backends**: Support for Iceberg catalogs (Hadoop, AWS Glue, Hive Metastore -  I didn't test the last two)
+- **Flexible Storage Options**: Works with MinIO (local S3-compatible storage) or AWS S3
+- **Production-Ready Patterns**: Demonstrates best practices for containerization, configuration management, and orchestration
+
+## Architecture Components
+
+### Orchestration Layer
+- **Apache Airflow 3.x** - Workflow orchestration platform
+    - Web UI (API Server) - User interface and REST API
+    - Scheduler - Orchestration brain
+    - DAG Processor - DAG parsing service
+    - Triggerer - Async task management
+    - PostgreSQL - Metadata database
+    - LocalExecutor - Job execution (development mode)
+
+### Processing Layer
+1. **Apache Spark 4.x** - Distributed data processing
+    - Spark Master - Resource management (for docker-compose only)
+    - Spark Workers - Distributed computation
+    - Spark History Server - Job monitoring and debugging (for docker-compose only)
+2. **DuckDB** on Airflow Workers
+
+### Data Layer
+- **Apache Iceberg** - Table format for data lakes
+- **MinIO** - S3-compatible object storage
+- **Multiple Catalog Options**: Hadoop, AWS Glue, Hive Metastore
+
+### Transformation Layer
+- **dbt (data build tool)** - SQL-based data transformation and modeling
+    - Staging models - Data cleaning and standardization
+    - Marts models - Business logic and aggregations
+
+## Deployment Options
+
+This project can be built for two types of local environments:
+
+### 1. Kubernetes with Helm
+For production-like environments, deploy to Kubernetes using the provided Helm charts and management script.
+
+The quickest way to get started. Run the entire stack locally using Docker:
+```bash
+cd helm/
+./my_helm -t=v1 --build
+```
+
+See **[helm/README.md](helm/README.md)** for detailed Kubernetes deployment instructions, but here the little summary:
+It builds Postgres DB, MinIO pod and uploads the example file,
+creates airflow containers using Airflow official helm chart
+and installs [Kubeflow Spark Operator](https://www.kubeflow.org/docs/components/spark-operator/overview/),
+creates rbac roles, role bindings and other staff. I decided to skip here for Spark History Server :).
+
+**Important note about Spark:**
+1. All spark jobs use kubernetes controller as spark master
+2. There are two use cases for Spark and k8s:
+    * Using built-in Apache Spark Kubernetes integration in [dbt_k8s_dag.py](dags/dbt_k8s_dag.py) where spark-driver on dbt container asks k8s controller for executors.
+    * Using [Kubeflow Spark Operator](https://www.kubeflow.org/docs/components/spark-operator/overview/) and SparkKubernetesOperator in Airflow (under the hood it uses built-in Apache Spark Kubernetes integration with few more tricks).
+
+
+### 2. Docker Compose
+The quickest way to get started. Run the entire stack locally using Docker:
+```bash
+./docker_compose.sh up -d --build
+```
+This creates:
 * Airflow Web UI (known in the new version as api-server) - It is responsible for showing you a nice UI and allowing other systems to interact via REST.
 * Airflow Scheduler - This one is actual orchestration. The brain part of it. Decides when and what to run according to the scheduling defined by the developers of DAGs.
 * DAG Processor - the new part in Airflow 3.x. Once this functionality was a part of Schedular in Airflow 2.x. Now it is the service of its own. Its responsibility to parse DAG,
@@ -61,196 +131,212 @@ Airflow 3.x contains:
 1. For example, in the case of DBT DAG, the actual job is done on the executor itself
 2. In the case of Spark, the executor is a service where the Spark submit operation is executed, and the job itself is done on the Spark cluster (spark-master, spark-workers)
 * airflow-init - container that runs initial scripts, creates users, etc. It dies immediately after it has finished.
+* Spark Master
+* Three Spark Executors
+* Spark Histroy Server
+* DBT container
 
+**Access Points:**
+- Airflow UI: http://localhost:8080 (admin/admin)
+- Spark Master UI: http://localhost:8081
+- Spark History Server: http://localhost:18080
+- MinIO Console: http://localhost:9001 (minioadmin/minioadmin)
 
-__Notes:__
-1. In Airflow 3.x, they made more changes, like they extracted the module for interacting with Airflow (like logging into UI, or interacting with REST) to be external.
-   so I needed to add `apache-airflow-providers-fab` into [requirements.txt](requirements.txt) and to add into airflow-init following command:
-```yaml
-   command: >
-     bash -c "
-       airflow db migrate && \
-       airflow fab-db migrate && \
-       airflow users create \
-                 --username admin \
-                 --firstname FIRST_NAME \
-                 --lastname LAST_NAME \
-                 --role Admin \
-                 --email admin@example.org \
-                 --password admin || true
-```
-and environment variable: `AIRFLOW__FAB__SESSION_BACKEND: "securecookie"`
-2. Now we have many airflow services, so they interact with each other with **JWT** - means we need to add the following env variables:
-```yaml
-   AIRFLOW__API_AUTH__JWT_SECRET: stam
-   # web-server responsible for issuing JWT tokens
-   AIRFLOW__API_AUTH__JWT_ISSUER: http://airflow-webserver:8080
-```
-3. Nice to have :) `AIRFLOW__SECRETS__SENSITIVE_FIELDS: "STORAGE_SECRET_KEY,STORAGE_ACCESS_KEY_ID"`. If you have env variables, you want Airflow to mask them when logging/displaying, use this env variable.
+## Dockerfiles
 
-#### Dockerfile.airflow
+I wanted to create dockerfiles such way where I can use them for both the [Docker Compose](docker-compose-airflow.yml) and the [Kubernetes](helm/).
+It means, you can find inside dockerfiles the parts that relevant only for running via [Docker Compose](docker-compose-airflow.yml) or  and the [Kubernetes](helm/).
 
-I am using the official docker `apache/airflow:3.0.6-python3.11`. It means that most of the staff you'll need are already included in this container.
-Since I am using LocalExecutor, I need to add Spark, so I am using a multi-stage build.
-I started with `FROM apache/spark:4.0.0-python3 AS build` and after that copied spark to the main part: `COPY --from=build /opt/spark/ /opt/spark/`.
-I still need a JVM for running Spark, so I installed it:
-```dockerfile
-RUN apt-get update && apt-get install -y \
-   openjdk-17-jdk \
-   wget \
-   curl \
-   net-tools iputils-ping \
-   openssh-client \
-   && rm -rf /var/lib/apt/lists/*
-```
+For example, for k8s all containers mount `templates` folder. The idea to use those templates during Apache Spark k8s operations. It's possible to use those templates from s3, I just tried to make it more simple. But I uploaded templates to minIO if you want to try this approach.
 
-The `apache/spark:4.0.0-python3` does not contain iceberg libraries, so I have added downloading them:
-```dockerfile
-# Download Iceberg and Glue JARs
-RUN mkdir -p /opt/spark/jars/iceberg \
-   && cd /opt/spark/jars/iceberg \
-   && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-4.0_2.13/1.10.0/iceberg-spark-runtime-4.0_2.13-1.10.0.jar \
-   && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/1.10.0/iceberg-aws-bundle-1.10.0.jar \
-   && wget -q https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.33.11/bundle-2.33.11.jar \
-   && wget -q https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.4.1/hadoop-aws-3.4.1.jar \
-   && cp *.jar /opt/spark/jars/ && chown -R airflow:root /opt/spark/jars/
-```
+1. **[Dockerfile.airflow](Dockerfile.airflow)**
+    * The part which is dealing with private/public key is relevant only for [Docker Compose](docker-compose-airflow.yml) scenario (and don't use it in production either).
+2. **[Dockerfile.dbt](Dockerfile.dbt)**
+    * The part which is dealing with private/public key and ssh server permissions is relevant only for [Docker Compose](docker-compose-airflow.yml) scenario, too (and don't use it in production either).
+    * The part with adding `spark` user to container is because in k8s dbt container become spark-driver, and it's reason why I add SPARK_DRIVER_HOST into dbt profiles and dbt_template, since executors should communicate with driver.
+3. **[Dockerfile.spark](Dockerfile.spark)**
 
-Adding the iceberg will be repeated in all other dockerfiles, except for the last line of setting the owner, since the owner is different in all other containers.
+To crease time of building images and since [Dockerfile.airflow](Dockerfile.airflow) and [Dockerfile.dbt](Dockerfile.dbt) both use [Dockerfile.spark](Dockerfile.spark), those two images use multi-staging build based on already existed spark image.
+It means, you always should ensure that `py-spark-spark` exists before building other two. If you don't want to deal with, just use the scripts I have created:
+1. For Docker Compose [docker_compose.sh](README.md#2-docker-compose)
+2. For k8s and Helm: [helm/my_helm.sh](README.md#1-kubernetes-with-helm)
 
-Copying DAG's folder into the container.
+## Sample DAGs
 
-And the last part (Don't do it in your production !!!!) - since I am using SSHOperator to communicate with DBT, I needed to add the use of public/private key. So I added the private key to this container.
+The project includes several example DAGs demonstrating different patterns:
 
-### Spark Cluster
+### [Empty DAG](dags/empty_dag.py)
 
-Spark Cluster consists of a standard structure: Master and Workers.
+Simple logging example (runs with both Docker Compose and Kubernetes)
 
-#### Services
+### [DuckDB DAG](dags/duck_db_dag.py)
 
-* Spark Master - it is responsible for managing spark resources, managing workers' health
-* Spark Worker - perform distributed work, sent to Worker by Master
-* Spark Driver - The place where spark-submit occurs. It generates logical and physical plans and sends tasks to workers.
-  While we don't have such a resource, in my case, it's airflow-scheduler or dbt containers. I'll explain this later, while describing the DAGs.
-* Spark History Service - a very important piece to debug issues happening. To make this work, I added spark-defaults.conf to point all spark
-  containers to a directory to store spark events and logs. I mounted it to the local directory, so Spark workers and master can put their files, and spark-history-server can read them.
-  In production, please, use S3 or some other shared storage accessible for all Spark containers.
+Lightweight analytics without Spark (runs with both Docker Compose and Kubernetes).
+It reads file from the Object Storage, performs some simple grouping by query and stores result back to the Object Storage.
 
-#### Dockerfile.spark
+### Spark Job Without Iceberg
 
-I am using `apache/spark:4.0.0-python3` - same as in the airflow multi-stage build.
-Same downloading iceberg libraries. The only difference is the last part that
-```dockerfile
-   ......
-   ......
-   && cp *.jar /opt/spark/jars/ && chown -R spark:spark /opt/spark/jars/
-```
-since it uses `spark` user to run Spark process.
+Simple job that creates dataframe, runs some sql operation and writes data to the Object Storage.
 
-### DBT
+* [Docker Compose](dags/spark_job_dag.py) - uses remote Spark cluster (part of [docker-compose-airflow.yml](docker-compose-airflow.yml))
+* [k8s](dags/spark_job_k8s_dag.py) - uses Airflow `SparkKubernetesOperator` to trigger creation (via Kubernetes Controller and [Kubeflow Spark Operator](https://www.kubeflow.org/docs/components/spark-operator/overview/)) Spark Cluster: driver and executors.
 
-#### Services
+### Spark Job With Iceberg
 
-It has only one service called dbt. For the local environment, I need only one.
-Because it's also used as Spark-Driver, I needed the Spark installation there.
+Spark job reads data from the Object Storage, performs some grouping by operation and stores data in the Iceberg table (backed by Object Storage) and catalog implementation (hadoop, glue or hive).
 
-#### Dockerfile.dbt
+* [Docker Compose](dags/spark_iceberg_dag.py) - uses remote Spark cluster (part of [docker-compose-airflow.yml](docker-compose-airflow.yml))
+* [k8s](dags/spark_job_iceberg_k8s_dag.py) - uses Airflow `SparkKubernetesOperator` to trigger creation (via Kubernetes Controller and [Kubeflow Spark Operator](https://www.kubeflow.org/docs/components/spark-operator/overview/)) Spark Cluster: driver and executors.
 
-It contains a multi-stage build with Spark and downloading Iceberg libraries, similar to Airflow.
-Only the base runtime image is `FROM python:3.11-slim-bullseye AS runtime`
+### DBT and Spark (dbt[spark] provider)
 
-Copying DBT files and installing requirements modules, such as `openssh-server`, `dbt-core`, `dbt-spark`, etc.
-
-Since the latest dbt-spark supports only Spark 3.5.x, I needed to install pyspark 4.0.0 `RUN python -m pip install --no-cache-dir pyspark==4.0.0`.
-
-Remember, that I use SSHOperator to interact between Airflow and DBT - so it's the reason I have added `openssh-server`, copied the public key, and updated `/etc/ssh/sshd_config` to allow almost everything. We are using this only for local dev environments.
-
-In the last part, I added a shell script ( [start_dbt.sh](scripts/start_dbt.sh) ) for starting the SSH server and executing dbt initial scripts, and made it the entrypoint.
-
-### MinIO (our S3 storage)
-
-When you don't want to pay for S3 during development, thanks to MinIO, we have MinIO - an ObjectStorage compatible with S3.
-
-#### Services
-
-* MinIO - the ObjectStorage itself.
-* minio-init - inits buckets, permissions, etc. It dies immediately after it has finished.
-
-## DAGs
-
-Here is the main piece of shit :).
-
-### [Simple Empty DAG](dags/empty_dag.py)
-
-The simple DAG that just logs text to output.
-
-### [Spark Job Without Iceberg DAG](dags/spark_job_dag.py)
-
-The Spark Job without using Iceberg. Just read data from S3 (MinIO) and write back parquet. Nothing special.
-It uses some utility [config_manager.py](dags/utils/config_manager.py) to parse env variables and populate `spark.*` configuration
-It uses `SparkSubmitOperator` to trigger `spark-submit' and to send [spark simple_spark](dags/spark/simple_spark.py) to Spark.
-
-In my previous job, we used Kubernetes and/or EMR, so we had both `KubernetesPodOperator` for some dags and `EmrContainerOperator`.
-We relied on KubernetesExecutor and had Airflow Worker k8s templates, so `KubernetesPodOperator` (or `EmrContainerOperator`) triggered creation of the worker, and this one performed spark-submit.
-So we could remove spark from airflow-scheduler and install it only on Worker pod.
-
-### [Spark with Iceberg DAG](dags/spark_iceberg_dag.py)
-
-This one ([iceberg_spark](dags/spark/iceberg_spark.py)) is simple, too.
-It uses the same utility [config_manager.py](dags/utils/config_manager.py) to parse env variables, choose the catalog implementation (hadoop, glue, hive), and populate `spark.*` configuration.
-The job creates some DataFrame and writes it to an iceberg table, according to the configuration.
-If the Iceberg database/table doesn't exist, the code creates it.
-
-### [Duck DB Dag](dags/duck_db_dag.py)
-
-This one takes a csv file from S3 (MinIO) populated by minio-init container and, with the help of DuckDB, writes it to S3 as parquet file.
-The next stage: it takes a parquet file, executes some grouping by SQL, and writes the result to parquet. No iceberg here.
-
-### [DBT DAG](dags/dbt_dag.py)
-
-Don't do it in such way in production. Please.
-In my previous workplace, as I had already mentioned, we used Kubernetes, and it is much easier to deal with all staff.
-Ok, but in this installation, I used SSHOperator. The problem is that every SSH session doesn't know the environment variables received during container creation.
-We have a few optional solutions:
-1. To allow other ssh session to see the env variable by editing `/etc/ssh/sshd_config`in in the DBT container.
-2. To send env variables directly to the SSH session
-
-I chose the second one. Read env variables I have in Airflow and then propagate them to the SSHOperator via XCOM.
-
+Same as previous, but with using DBT. Really overengineered use case, but it's for learning purpose - pardon me.
+Here the example again for too much code because of my wish to use the same staff for both Docker Compose and k8s.
+Inside the [dbt/profiles.yml](dbt/profiles.yml) you can see all spark configuration relevant for k8s.
+If you use Docker Compose only, remote Spark Cluster, you can delete all staff similar to this if statement:
 ```python
-   @task
-   def create_multiple_variables() -> dict:
-       envs = {}
-       for name, value in os.environ.items():
-           if name.startswith("CATALOG_") or name.startswith("STORAGE_") or name.startswith("SPARK_") or name.startswith("AWS_"):
-               if value is not None:
-                   envs[name] = value
-       envs["SCHEMA_CUSTOMERS"] = os.getenv("SCHEMA_CUSTOMERS")
-       envs["RAW_DATA_PATH"] = "s3a://examples/customers-100000.csv"
-       return envs
-  
-   dbt_ssh_task = SSHOperator(
-       task_id='ssh_dbt',
-       ssh_conn_id='dbt_ssh',
-       command="""
-               {% set dynamic_vars = task_instance.xcom_pull(task_ids='create_multiple_variables') %}
-               {% for key, value in dynamic_vars.items() %}
-               export {{ key }}="{{ value }}"
-               {% endfor %}
-               dbt run --project-dir /dbt --profiles-dir /dbt --profile $CATALOG_TYPE --target dev
-           """,
-       cmd_timeout=600,
-       do_xcom_push=False,
-       get_pty=False
-   )
+"{{ env_var('SPARK_DRIVER_HOST') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'dbt' }}"
+```
+otherwise you just can remove everything after `if` as following example:
+```python
+"{{ env_var('SPARK_DRIVER_HOST')"
+```
+* [Docker Compose](dags/dbt_dag.py) - but don't use it in such way. Very unsecured.
+* [k8s](dags/dbt_k8s_dag.py)
+
+To get little bit more info, look [dbt here](dbt/README.md).
+
+## Project Structure
+
+```
+py_spark/
+├── README.md                     # Detailed technical documentation
+├── dbt/                          # dbt data transformation project
+│   └── README.md                 # dbt-specific documentation
+├── helm/                         # Kubernetes/Helm deployment
+│   └── README.md                 # Helm deployment guide
+├── dags/                         # Airflow DAG definitions
+├── docker-compose-airflow.yml    # Docker Compose configuration
+├── Dockerfile.airflow            # Airflow container image
+├── Dockerfile.spark              # Spark container image
+├── Dockerfile.dbt                # dbt container image
+├── scripts/                      # Helper scripts
+├── data/                         # Sample data files
+└── requirements.txt              # Python dependencies
 ```
 
-The advantage is clear - I can send different parameters, according to what catalog type/implementation I want to use.
-The disadvantage is clear, too - security.
+## Getting Started
 
-Now, about DBT itself. I have two stages:
-1. Read data from a CSV file and store it in an iceberg. During this stage, DBT stores data in a temp table, then purges it into an iceberg table.
-2. Read data from the iceberg table, make the grouping by aggregation, and store it in another iceberg table.
+### Prerequisites
+- Docker and Docker Compose (for local development)
+- Kubernetes cluster (based on Docker Desktop) and Helm (for Kubernetes deployment)
+- Python 3.11+ (if running components outside containers)
 
+### Quick Start - Docker Compose
 
-That's it.
+1. **Clone the repository**
+   ```bash
+   cd /path/to/py_spark
+   ```
+
+2. **Build and start all services**
+   ```bash
+   ./docker_compose.sh up -d --build
+   ```
+
+3. **Access Airflow UI**
+    - Navigate to http://localhost:8080
+    - Login with admin/admin
+    - Enable and trigger sample DAGs
+
+4. **Monitor Spark jobs**
+    - Spark Master UI: http://localhost:8081
+    - Spark History Server: http://localhost:18080
+
+5. **Check MinIO storage**
+    - MinIO Console: http://localhost:9001
+    - Login with minioadmin/minioadmin
+
+### Quick Start - Kubernetes Deployment
+
+**Access Airflow UI**
+- Port Forward airflow-api-server: `kubectl port-forward svc/airflow-api-server 8080:8080 --namespace py-spark`
+- Navigate to http://localhost:8080
+- Login with admin/admin
+- Enable and trigger sample DAGs
+
+For Kubernetes deployment instructions, see **[helm/README.md](helm/README.md)**.
+
+## Configuration
+
+### Environment Variables for Docker Compose
+The project uses environment variables for configuration. Example files are provided:
+- `env.minio.example` - Configuration for MinIO storage (tested)
+- `env.glue.example` - Configuration for AWS Glue Catalog (not tested)
+
+### Catalog Options
+The platform supports multiple Iceberg catalog implementations:
+- **Hadoop Catalog** - File-based catalog (default for local development)
+- **AWS Glue Catalog** - AWS managed catalog service (not tested)
+- **Hive Metastore** - Traditional Hive catalog (not tested)
+
+## Documentation
+
+### Detailed Component Documentation
+
+- **[Main README](README.md)** - Comprehensive technical documentation covering:
+    - Detailed architecture and component descriptions
+    - Dockerfile explanations for each service
+    - DAG implementation details
+    - Configuration and troubleshooting
+
+- **[Helm Deployment Guide](helm/README.md)** - Kubernetes deployment documentation:
+    - Helm chart management with `my_helm.sh` script
+    - Service-by-service deployment options
+    - Upgrade and maintenance procedures
+    - Kubernetes-specific troubleshooting
+
+- **[dbt Documentation](dbt/README.md)** - Data transformation layer guide:
+    - dbt project structure and models
+    - Multi-catalog configuration (Hadoop, Glue, Hive)
+    - Environment variable reference
+    - Spark configuration for dbt
+    - Integration with Airflow and Kubernetes
+
+## Important Notes
+
+### Development vs Production
+
+**This project is designed for learning and development purposes.**
+
+For production use, you should:
+- Replace insecure SSH-based communication patterns
+- Implement proper secrets management (not plain environment variables)
+- Use production-grade executors (CeleryExecutor or KubernetesExecutor)
+- Configure proper resource limits and monitoring
+- Use external object storage (S3) instead of MinIO
+- Implement proper authentication and authorization
+- Set up proper logging and alerting
+
+### Technology Versions
+
+- **Airflow**: 3.1.0
+- **Spark**: 4.0.0
+- **Iceberg**: 1.10.0
+- **Python**: 3.11
+- **dbt-core**: Latest with dbt-spark adapter
+- **PostgreSQL**: Latest (Airflow metadata)
+
+## AI-Assisted Development
+
+This project was developed with assistance from AI tools (Cursor.ai, IntelliJ Junie, Intellij Gemini plg-in, ChatGPT, Gemini, Claude).
+While AI provided a good starting structure, significant manual refinement was required to create a working system.
+The project serves as a realistic example of AI-assisted development, including both its potential and limitations.
+
+## Additional Resources
+
+- [Apache Airflow Documentation](https://airflow.apache.org/docs/)
+- [Apache Spark Documentation](https://spark.apache.org/docs/latest/)
+- [Apache Iceberg Documentation](https://iceberg.apache.org/)
+- [dbt Documentation](https://docs.getdbt.com/)
+- [MinIO Documentation](https://min.io/docs/)

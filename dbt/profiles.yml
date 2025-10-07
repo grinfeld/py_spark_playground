@@ -44,6 +44,21 @@ glue:
         "spark.sql.adaptive.forceApply": "true"
         "spark.sql.adaptive.enabled": "true"
         "spark.sql.adaptive.coalescePartitions.enabled": "true"
+        "spark.master": "{{ env_var('SPARK_MASTER_URL') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'spark://spark-master:7077' }}"
+        # --- K8s configuration not empty only if SPARK_MASTER_URL starts with k8s:// ---
+        "spark.kubernetes.namespace": "{{ env_var('SPARK_NAMESPACE', 'py-spark') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.kubernetes.container.image": "{{ 'py-spark-spark:' + env_var('SPARK_IMAGE_VERSION', 'latest') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.executor.instances": "{{ env_var('SPARK_EXECUTOR_INSTANCES', '3') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '1' }}"
+        "spark.kubernetes.authenticate.driver.serviceAccountName": "{{ env_var('SPARK_SERVICE_ACCOUNT', 'spark') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.kubernetes.container.image.pullPolicy": "IfNotPresent"
+        "spark.kubernetes.driver.podTemplateFile": "{{ 'local:///spark/templates/spark_k8s_driver_template.yaml' if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.kubernetes.executor.podTemplateFile": "{{ 'local:///spark/templates/spark_k8s_executor_template.yaml' if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.app.name": "{{ env_var('SPARK_APP_NAME', 'dbt-spark-default') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.app.id": "{{ env_var('SPARK_JOB_ID', 'default-job') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.driver.bindAddress": "{{ env_var('SPARK_DRIVER_BIND_ADDRESS', '0.0.0.0') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '0.0.0.0' }}"
+        "spark.driver.host": "{{ env_var('SPARK_DRIVER_HOST') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'dbt' }}"
+        "spark.port.maxRetries": "100"
+        "spark.eventLog.enabled": "{{ 'false' if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'true' }}"
 
     dev:
       <<: *glue_common
@@ -60,11 +75,11 @@ hadoop:
     # Common configuration for Hadoop outputs
     _common: &hadoop_common
       type: spark
-      method: "{{ env_var('SPARK_CONNECTION_METHOD', 'thrift') }}"
+      method: "{{ env_var('SPARK_CONNECTION_METHOD', 'session') }}"
       schema: "{{ env_var('SCHEMA_CUSTOMERS') }}"
       # Default host should be the service name in Docker Compose
-      host: "{{ env_var('SPARK_CONN_HOST', 'spark-thrift-server') }}"
-      port: "{{ env_var('SPARK_CONN_PORT', 10000) | int }}"
+      host: "{{ env_var('SPARK_CONN_HOST', 'spark-master') }}"
+      port: "{{ env_var('SPARK_CONN_PORT', 7077) | int }}"
       # All Spark and Hadoop settings must be placed inside spark_config.
       # Non-standard keys like 's3_endpoint' at the top level are ignored.
       # NOTE!!!!: Actually those parameters are not relevant when using the thrift method
@@ -105,7 +120,22 @@ hadoop:
         "spark.sql.adaptive.forceApply": "true"
         "spark.sql.adaptive.enabled": "true"
         "spark.sql.adaptive.coalescePartitions.enabled": "true"
-    
+        "spark.master": "{{ env_var('SPARK_MASTER_URL') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'spark://spark-master:7077' }}"
+        # --- K8s configuration not empty only if SPARK_MASTER_URL starts with k8s:// ---
+        "spark.kubernetes.namespace": "{{ env_var('SPARK_NAMESPACE', 'py-spark') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.kubernetes.container.image": "{{ 'py-spark-spark:' + env_var('SPARK_IMAGE_VERSION', 'latest') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.executor.instances": "{{ env_var('SPARK_EXECUTOR_INSTANCES', '3') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '1' }}"
+        "spark.kubernetes.authenticate.driver.serviceAccountName": "{{ env_var('SPARK_SERVICE_ACCOUNT', 'spark') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.kubernetes.container.image.pullPolicy": "IfNotPresent"
+        "spark.kubernetes.driver.podTemplateFile": "{{ 'local:///spark/templates/spark_k8s_driver_template.yaml' if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.kubernetes.executor.podTemplateFile": "{{ 'local:///spark/templates/spark_k8s_executor_template.yaml' if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.app.name": "{{ env_var('SPARK_APP_NAME', 'dbt-spark-default') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.app.id": "{{ env_var('SPARK_JOB_ID', 'default-job') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.driver.bindAddress": "{{ env_var('SPARK_DRIVER_BIND_ADDRESS', '0.0.0.0') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '0.0.0.0' }}"
+        "spark.driver.host": "{{ env_var('SPARK_DRIVER_HOST') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'dbt' }}"
+        "spark.port.maxRetries": "100"
+        "spark.eventLog.enabled": "{{ 'false' if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'true' }}"
+
     dev:
       <<: *hadoop_common
       threads: 4
@@ -133,7 +163,7 @@ hive:
       # NOTE!!!!: Actually those parameters are not relevant when using the thrift method
       # since thrift client don't send spark-configuration to thrift server. Bad news.
       # in case of http, odbc and other methods - it should work. I hope.
-      spark_config:
+      server_side_parameters:
         "spark.sql.catalog.mycatalog.type": "hive"
         "spark.sql.catalog.mycatalog.warehouse": "{{ env_var('CATALOG_WAREHOUSE_PATH', '/user/hive/warehouse') }}"
         "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
@@ -158,6 +188,21 @@ hive:
         "spark.sql.adaptive.coalescePartitions.enabled": "true"
         # Hive metastore connection
         "spark.sql.catalog.mycatalog.uri": "thrift://{{ env_var('HIVE_METASTORE_HOST', 'localhost') }}:{{ env_var('HIVE_METASTORE_PORT', '9083') }}"
+        "spark.master": "{{ env_var('SPARK_MASTER_URL') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'spark://spark-master:7077' }}"
+        # --- K8s configuration not empty only if SPARK_MASTER_URL starts with k8s:// ---
+        "spark.kubernetes.namespace": "{{ env_var('SPARK_NAMESPACE', 'py-spark') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.kubernetes.container.image": "{{ 'py-spark-spark:' + env_var('SPARK_IMAGE_VERSION', 'latest') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.executor.instances": "{{ env_var('SPARK_EXECUTOR_INSTANCES', '3') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '1' }}"
+        "spark.kubernetes.authenticate.driver.serviceAccountName": "{{ env_var('SPARK_SERVICE_ACCOUNT', 'spark') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.kubernetes.container.image.pullPolicy": "IfNotPresent"
+        "spark.kubernetes.driver.podTemplateFile": "{{ 'local:///spark/templates/spark_k8s_driver_template.yaml' if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.kubernetes.executor.podTemplateFile": "{{ 'local:///spark/templates/spark_k8s_executor_template.yaml' if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.app.name": "{{ env_var('SPARK_APP_NAME', 'dbt-spark-default') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.app.id": "{{ env_var('SPARK_JOB_ID', 'default-job') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '' }}"
+        "spark.driver.bindAddress": "{{ env_var('SPARK_DRIVER_BIND_ADDRESS', '0.0.0.0') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else '0.0.0.0' }}"
+        "spark.driver.host": "{{ env_var('SPARK_DRIVER_HOST') if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'dbt' }}"
+        "spark.port.maxRetries": "100"
+        "spark.eventLog.enabled": "{{ 'false' if env_var('SPARK_MASTER_URL', 'local[*]').startswith('k8s://') else 'true' }}"
 
     dev:
       <<: *hive_common
