@@ -4,9 +4,9 @@
 
 `my_helm.sh` is a helper script for setting up and managing the current project on Kubernetes. 
 It orchestrates the deployment of required services for running the Airflow jobs on Kubernetes. 
-Ut installs required components like Spark Operator, Apache Airflow, MinIO (object storage), and PostgreSQL database using Helm charts.
+It installs the required components, including Spark Operator, Apache Airflow, MinIO (object storage), and PostgreSQL database, using Helm charts.
 
-It works, currently, with macOS only. But it's easy to make adjustment for running it on Linux (and maybe on Windows).
+It currently works with macOS only. But it's easy (up to nothing) to make adjustments for running it on Linux (and possibly on Windows).
 
 ## Features
 
@@ -22,7 +22,7 @@ Before using this script, ensure you have:
 1. **Python** - Python installed
 2. **Docker** - Docker installed and running (if building images)
 3. **Docker-Desktop** - Docker Desktop installed and running (if building images)
-   * __Note:__ to use minikube you need to install some local docker repository (ask Google/ChatGPT how to) and change the image parameters in all yamls, scripts and code to use it, as follows `image: localhost:5050/py-spark-spark:some-tag` 
+   * __Note:__ to use minikube, you need to install some local Docker repository (ask Google/ChatGPT how to) and change the image parameters in all yamls, scripts and code to use it, as follows `image: localhost:5050/py-spark-spark:some-tag` 
 4. **Access to Kubernetes Cluster** - Valid kubeconfig with appropriate permissions
 
 ## Usage
@@ -33,9 +33,7 @@ Before using this script, ensure you have:
 ./my_helm.sh [OPTIONS]
 ```
 
-__Note:__ to avoid problems with staff I haven't tested, better to run script inside the `helm/` directory :).
-
-It's better
+__Note:__ To avoid problems with staff I haven't tested, better to run the script inside the `helm/` directory :).
 
 ### Required Arguments
 
@@ -53,7 +51,7 @@ It's better
 
 #### Initial Setup Options
 
-Usually, initial setup should be running only once to create k8s cluster and install all the relevant staff. All other changes better to perform according to [Service Upgrade Options](./README.md#Service-Upgrade-Options).
+Typically, the initial setup should run only once to create a Kubernetes cluster and install all the necessary software. All other changes should be performed according to [Service Upgrade Options](./README.md#Service-Upgrade-Options).
 __Note:__ Running initial setup will override anything you have added manually previously in `service/values.yaml`. 
 
 **ALERT** executing without option `--apply`, considered initial setup. You have been warned.
@@ -72,7 +70,7 @@ __Note:__ Running initial setup will override anything you have added manually p
 
 #### Service Upgrade Options
 
-After the initial setup for making changes in k8s, the better option is editing `service/values.yaml` where the `service` is one of following: `minio`, `postgres`, `airflow`, `spark`.
+After the initial setup for making changes in k8s, the better option is editing `service/values.yaml` where the `service` is one of the following: `minio`, `postgres`, `airflow`, `spark`.
 
 - **`--apply`**  
   Upgrade an existing Helm release instead of performing initial setup.  
@@ -82,7 +80,7 @@ After the initial setup for making changes in k8s, the better option is editing 
   Specify which service to upgrade when using `--apply`.  
   Valid values: `minio`, `postgres`, `airflow`, `spark`
 
-__Note__: when using `--apply` it doesn't change rbac and so on, so if you need to make changes in rbac, do it manually.
+__Note__: when using `--apply`, it doesn't change RBAC and so on, so if you need to make changes in RBAC, do it manually.
 
 #### Help
 
@@ -91,7 +89,7 @@ __Note__: when using `--apply` it doesn't change rbac and so on, so if you need 
 
 #### Notes
 
-The names of `services` used in script in some cases are different from those appears in the helm. Here the list of helm elements installed by `my_helm.sh`:
+The names of `services` used in the script, in some cases, are different from those that appear in the helm. Here is the list of helm elements installed by `my_helm.sh`:
 ---------------------------------
 | **my_helm name** | **helm release name** |
 |------------------|-----------------------|
@@ -107,14 +105,14 @@ The names of `services` used in script in some cases are different from those ap
 Deploy the entire platform with version v1.0.0, building Docker images:
 
 ```bash
-# install required dependencies, build required images and creates and apply helm. Use default helm and default namespace (a.k.a. py-spark)
+# install required dependencies, build required images, and create and apply Helm. Use default helm and default namespace (a.k.a. py-spark)
 ./my_helm.sh --tag=v1.0.0 --build
 ```
 
 This will:
 1. Install required dependencies
 2. Build and push Docker images with tag v1.0.0
-3. Create namespace `py-spark` (if not exists)
+3. Create namespace `py-spark` (if it does not exist)
 4. Deploy PostgreSQL
 5. Deploy MinIO
 6. Deploy Spark Operator
@@ -225,7 +223,7 @@ When you run `my_helm.sh` without `--apply`:
 1. **Install Dependencies** - Installs required tools and validates environment
 2. **Update Helm Variables** - Configures Helm environment (if `--change-helm` specified)
 3. **Build Images** - Builds Docker images (if `--build` specified)
-4. **Create Namespace** - Creates Kubernetes namespace if it doesn't exist
+4. **Create Namespace** - Creates a Kubernetes namespace if it doesn't exist
 5. **Deploy Services** - Deploys services in order:
    - PostgreSQL
    - MinIO
@@ -259,7 +257,7 @@ To modify configuration for any service:
 
 ### Image Tags
 
-The `--tag` parameter is used to specify which version of custom Docker images to deploy. Ensure your images are built and available in your container registry with the specified tag.
+The `--tag` parameter is used to specify which version of custom Docker images to deploy. Please make sure your images are built and available in your container registry with the specified tag.
 
 ## Troubleshooting
 
@@ -271,7 +269,7 @@ The `--tag` parameter is used to specify which version of custom Docker images t
 ./my_helm.sh --tag=v1.0.0
 ```
 
-#### Issue: "When applying helm for specific service, you should set service name"
+#### Issue: "When applying Helm for a specific service, you should set the service name."
 **Solution**: When using `--apply`, you must specify a service:
 ```bash
 ./my_helm.sh --tag=v1.0.0 --apply --service=airflow
@@ -288,7 +286,7 @@ The `--tag` parameter is used to specify which version of custom Docker images t
 **Behavior**: The script will detect existing namespaces and continue without error.
 
 #### Issue: Helm release already exists
-**Solution**: Use `--apply` to upgrade an existing release instead of trying initial setup:
+**Solution**: Use `--apply` to upgrade an existing release instead of trying the initial setup:
 ```bash
 ./my_helm.sh --tag=v1.0.0 --apply --service=<service-name>
 ```
@@ -331,7 +329,7 @@ To debug issues:
    - PostgreSQL must be running before Airflow
    - MinIO should be available for Spark and Airflow storage
 
-3. **Helm Environment Variables**: The `--change-helm` option modifies your `~/.zshrc` file. Use with caution and only if you understand the implications.
+3. **Helm Environment Variables**: The `--change-helm` option modifies your `~/.zshrc` file. Please use it with caution and only if you understand the implications.
 
 4. **MinIO Post-Deploy Job**: When upgrading MinIO, the script automatically deletes the `minio-post-deploy-job` to allow it to be recreated.
 
