@@ -16,7 +16,7 @@ RUN rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /home/spark/ && chown -R spark:spark /home/spark/
 
 # Download Iceberg and Glue JARs
-RUN mkdir -p /opt/spark/jars/iceberg \
+RUN mkdir -p /opt/spark/events && mkdir -p /opt/spark/jars/iceberg \
     && cd /opt/spark/jars/iceberg \
     && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-4.0_2.13/1.10.0/iceberg-spark-runtime-4.0_2.13-1.10.0.jar \
     && wget -q https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/1.10.0/iceberg-aws-bundle-1.10.0.jar \
@@ -28,10 +28,15 @@ RUN mkdir -p /opt/spark/jars/iceberg \
 
 USER spark
 
+COPY dags/ "/opt/airflow/dags"
+
 # Create directories for Spark logs and temp files
 RUN mkdir -p /tmp/spark-events && mkdir -p /tmp/spark-logs && mkdir -p /opt/spark/events && mkdir -p /opt/spark/logs
 
 COPY spark-defaults.conf "/opt/spark/conf/spark-defaults.conf"
+COPY helm/templates/spark_k8s_executor_template.yaml "/spark/templates/spark_k8s_executor_template.yaml"
+COPY helm/templates/spark_k8s_driver_template.yaml "/spark/templates/spark_k8s_driver_template.yaml"
+COPY helm/templates/spark_operator_spec.json "/spark/templates/spark_operator_spec.json"
 
 # Expose port for Spark UI (optional)
 EXPOSE 4040

@@ -6,28 +6,34 @@ import logging
 from pyspark.sql import SparkSession
 import argparse
 
+from job_file import PythonSparkJob, ParamExtractor, ArgParserParamExtractor, BothEnvAndArgsExtractor, \
+    EnvVarParamExtractor
+
 logger = logging.getLogger(__name__)
 
-def create_spark_session(app_name: str, master: str) -> SparkSession:
-    return SparkSession.builder.appName(app_name).master(master).getOrCreate()
+class SimpleSparkJob(PythonSparkJob):
 
-def main(app_name: str, master: str, output: str):
-    spark_session = create_spark_session(app_name, master)
+    def __init__(self, ps: ParamExtractor, spark_conf: dict = None):
+        super().__init__(ps, spark_conf)
+        self.output = ps.get_param("output-path", required=True)
 
-    data = [(1, "Something"), (2, "Another")]
-    df = spark_session.createDataFrame(data, ["id", "name"])
-    df.show()
+    def run(self):
+        spark_session = self.create_spark_session()
+        self._run_inner(spark_session, self.output)
 
-    df.write.mode("overwrite").parquet(output)
-
-    spark_session.stop()
+    def _run_inner(self, spark_session: SparkSession, out: str):
+        data = [(1, "Something"), (2, "Another")]
+        df = spark_session.createDataFrame(data, ["id", "name"])
+        df.show()
+        df.write.mode("overwrite").parquet(out)
+        spark_session.stop()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--job-name", help="Name of the job", required=True)
-    parser.add_argument("--master", help="Master", required=True)
-    parser.add_argument("--output-path", help="Output path", required=True)
-    args = parser.parse_args()
-    main(args.job_name, args.master, args.output_path)
+    parser.add_argument("--spark-job-name", help="Name of the job", required=False)
+    parser.add_argument("--spark-master-url", help="Master", required=False)
+    parser.add_argument("--output-path", help="Output path", required=False)
+    SimpleSparkJob(BothEnvAndArgsExtractor(ArgParserParamExtractor(parser), EnvVarParamExtractor())).run()
+
 
 

@@ -18,10 +18,6 @@ clean-targets:         # directories to be removed by `dbt clean`
   - "target"
   - "dbt_packages"
 
-# This hook to do some work before. Here I am printing some env vars and spark.* configs
-on-run-start:
-  - "{{ log_effective_conf() }}"
-
 # Configuring models
 models:
   spark_iceberg_app:

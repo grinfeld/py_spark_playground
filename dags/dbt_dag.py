@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
     #    schedule=timedelta(hours=1),
     start_date=datetime(2024, 1, 1),
     catchup=False,
-    tags=['dbt[spark]', 's3', 'iceberg'],
+    tags=['dbt[spark]', 's3', 'iceberg', 'docker-compose'],
     default_args={}
 )
 def dbt_dag():

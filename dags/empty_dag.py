@@ -7,7 +7,11 @@ logger = logging.getLogger(__name__)
 
 logger.info("Starting")
 
-@dag(start_date=datetime.datetime(2021, 1, 1), schedule=None)
+@dag(
+    start_date=datetime.datetime(2021, 1, 1),
+    tags=['docker-compose', 'k8s'],
+    schedule=None
+)
 def generate_dag():
     @task()
     def extract():

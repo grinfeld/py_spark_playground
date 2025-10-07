@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from pyspark.sql import SparkSession
 import argparse
 
+from job_file import PythonSparkJob, ParamExtractor, ArgParserParamExtractor, EnvVarParamExtractor, \
+    BothEnvAndArgsExtractor
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -16,39 +19,46 @@ class IcebergConfig:
     db_name: str
     table_name: str
 
-def create_spark_session(app_name: str, master: str) -> SparkSession:
-    return SparkSession.builder.appName(app_name).master(master).getOrCreate()
+class IcebergJob(PythonSparkJob):
 
-def main(app_name: str, master: str, config: IcebergConfig):
-    spark_session = create_spark_session(app_name, master)
+    def __init__(self, ps: ParamExtractor, spark_conf: dict = None):
+        super().__init__(ps, spark_conf)
+        db_name = ps.get_param("db-name", required=True)
+        table_name = ps.get_param("table-name", required=True)
+        logger.info(f"IcebergJob db_name={db_name}, table_name={table_name}")
+        self.iceberg_conf = IcebergConfig(db_name, table_name)
 
-    current_catalog = spark_session.catalog.currentCatalog()
-    logging.info(f"Current catalog: {current_catalog}")
+    def run(self):
+        spark_session = self.create_spark_session()
+        self._run_inner(spark_session, self.iceberg_conf)
 
-    data = [(1, f"Something"), (2, current_catalog)]
-    df = spark_session.createDataFrame(data, ["id", "name"])
-    df.show()
+    def _run_inner(self, spark_session: SparkSession, config: IcebergConfig):
 
-    cmd = df.writeTo(config.table_name).using("iceberg")
+        current_catalog = spark_session.catalog.currentCatalog()
+        logging.info(f"Current catalog: {current_catalog}")
 
-    if not spark_session.catalog.tableExists(f"{config.table_name}"):
-        cmd.create()
-    else:
-        cmd.append()
+        data = [(1, f"Something"), (2, current_catalog)]
+        df = spark_session.createDataFrame(data, ["id", "name"])
+        df.show()
 
-    iceberg_df = spark_session.table(config.table_name)
-    iceberg_df.show(5)
+        cmd = df.writeTo(config.table_name).using("iceberg")
 
-    spark_session.stop()
+        if not spark_session.catalog.tableExists(f"{config.table_name}"):
+            cmd.create()
+        else:
+            cmd.append()
+
+        iceberg_df = spark_session.table(config.table_name)
+        iceberg_df.show(5)
+
+        spark_session.stop()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--job-name", help="Name of the job", required=True)
-    parser.add_argument("--master", help="Master", required=True)
-    parser.add_argument("--db-name", help="DB name", required=True)
-    parser.add_argument("--table-name", help="Table name", required=True)
-    args = parser.parse_args()
-    config = IcebergConfig(args.db_name, args.table_name)
-    main(args.job_name, args.master, config)
+    parser.add_argument("--spark-job-name", help="Name of the job", required=False)
+    parser.add_argument("--spark-master-url", help="Master", required=False)
+    parser.add_argument("--db-name", help="DB name", required=False)
+    parser.add_argument("--table-name", help="Table name", required=False)
+    IcebergJob(BothEnvAndArgsExtractor(ArgParserParamExtractor(parser), EnvVarParamExtractor())).run()
 
 
