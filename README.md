@@ -116,7 +116,7 @@ and of course, create Spark History deployment.
 1. All Spark jobs use the Kubernetes controller as the Spark master
 2. There are two use cases for Spark and k8s:
     * Using built-in Apache Spark Kubernetes integration in [dbt_k8s_dag.py](dags/dbt_k8s_dag.py) where spark-driver on dbt container asks k8s controller for executors.
-    * Using [Kubeflow Spark Operator](https://www.kubeflow.org/docs/components/spark-operator/overview/) and SparkKubernetesOperator in Airflow (under the hood it uses built-in Apache Spark Kubernetes integration with a few more tricks).
+    * Using [Kubeflow Spark Operator](https://www.kubeflow.org/docs/components/spark-operator/overview/) and SparkKubernetesOperator in Airflow.
 
 
 ### 2. Docker Compose
