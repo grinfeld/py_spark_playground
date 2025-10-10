@@ -56,7 +56,7 @@ The purpose of this project is to create a local/dev playground for running Airf
 ## Key Features
 
 - **Multi-Environment Support**: Run locally with Docker Compose or deploy to Kubernetes using Helm
-- **Multiple Catalog Backends**: Support for Iceberg catalogs (Hadoop, AWS Glue, Hive Metastore -  I didn't test the last two)
+- **Multiple Catalog Backends**: Support for Iceberg catalogs (Hadoop, AWS Glue, Hive Metastore -  I didn't test the last two, but they should work, since I had similar [project it worked](https://github.com/grinfeld/iceberg))
 - **Flexible Storage Options**: Works with MinIO (local S3-compatible storage) or AWS S3
 - **Production-Ready Patterns**: Demonstrates best practices for containerization, configuration management, and orchestration
 
