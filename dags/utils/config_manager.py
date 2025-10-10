@@ -142,9 +142,11 @@ class HiveCatalog(IcebergCatalogBackend):
         # Add Hive-specific configurations
         configs.update({
             self._format_with_name(): "org.apache.iceberg.spark.SparkCatalog",
-            self._format_with_name("type"): "hive",
-            self._format_with_name("uri"): self.uri
+            self._format_with_name("type"): "hive"
         })
+
+        if self.catalog_config.warehouse_path is not None:
+            configs[self._format_with_name("warehouse")] = self.catalog_config.warehouse_path
         
         return configs
 
@@ -180,9 +182,12 @@ class GlueCatalog(WithS3Catalog):
         configs.update(super()._s3_config())
         # Add Glue-specific configurations
         configs.update({
-            self._format_with_name(): "org.apache.iceberg.aws.glue.GlueCatalog",
+            self._format_with_name(): "org.apache.iceberg.spark.SparkCatalog",
             self._format_with_name("type"): "glue"
         })
+
+        if self.storage_config.region is not None:
+            configs[self._format_with_name("glue.region")] = self.storage_config.region
 
         # glue works with s3 and not with s3a protocol
         if self.catalog_config.warehouse_path is not None:
