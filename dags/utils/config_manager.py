@@ -189,8 +189,11 @@ class GlueCatalog(WithS3Catalog):
         if self.storage_config.region is not None:
             configs[self._format_with_name("glue.region")] = self.storage_config.region
 
+        # glue works with s3 and not with s3a protocol
         if self.catalog_config.warehouse_path is not None:
-            configs[self._format_with_name("warehouse")] = self.catalog_config.warehouse_path
+            sub = str(self.catalog_config.warehouse_path)
+            if sub.startswith("s3a://"):
+                configs[self._format_with_name("warehouse")] = f"s3://{sub[6:]}"
 
         return configs
 
