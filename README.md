@@ -232,6 +232,7 @@ py_spark/
 ├── Dockerfile.airflow            # Airflow container image
 ├── Dockerfile.spark              # Spark container image
 ├── Dockerfile.dbt                # dbt container image
+├── Dockerfile.fake                # dbt container image
 ├── scripts/                      # Helper scripts
 ├── data/                         # Sample data files
 └── requirements.txt              # Python dependencies

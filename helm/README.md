@@ -91,13 +91,14 @@ __Note__: when using `--apply`, it doesn't change RBAC and so on, so if you need
 
 The names of `services` used in the script, in some cases, are different from those that appear in the helm. Here is the list of helm elements installed by `my_helm.sh`:
 ---------------------------------
-| **my_helm name** | **helm release name** |
-|------------------|-----------------------|
-| postgres         | postgres-release      |
-| minio            | minio-release         |
-| airflow          | airflow               |
-| spark            | spark                 |
-| kafka            | strimzi-kafka-operator|
+| **my_helm name** | **helm release name**  |
+|------------------|------------------------|
+| postgres         | postgres-release       |
+| minio            | minio-release          |
+| airflow          | airflow                |
+| spark            | spark                  |
+| kafka            | strimzi-kafka-operator |
+| fake             | fake-release           |
 
 ## Usage Examples
 
@@ -204,6 +205,11 @@ The script manages the following services:
 - **Helm Chart**: Strimzi Kafka Operator.
 - **Configuration**: Edit `kafka/kafka-cluster.yaml` for kafka cluster and `kafka/operator-values.yaml` for Strimzi kafka operator.
 
+### 5. Fake Data Generator 
+- **Purpose**: Create Api to generate fake data and send it into kafka
+- **Helm Chart**: Python Fake data generator
+- **Configuration**: Edit `fake/values.yaml`
+
 ## Directory Structure
 
 ```
@@ -215,6 +221,7 @@ helm/
 ├── postgres/               # PostgreSQL Helm chart
 ├── spark/                  # Spark Operator Helm values
 ├── strimzi-kafka/          # Strimzi Kafka
+├── fake/                   # Web server to trigger generating fake data
 ├── scripts/                # Helper scripts
 │   ├── functions.sh
 │   ├── create_postgres.sh
@@ -240,6 +247,7 @@ When you run `my_helm.sh` without `--apply`:
    - Spark Operator
    - Apache Airflow
    - Single node Kafka Cluster
+   - Web server to generate fake data and send to Kafka
 
 ### Upgrade Workflow
 
@@ -261,6 +269,7 @@ To modify configuration for any service:
    - PostgreSQL: `postgres/values.yaml`
    - Spark: `spark/values.yaml`
    - Kafka: `kafka/kafka-cluster.yaml`
+   - Fake Data Generator: `fake/values.yaml`
 
 2. Apply the changes:
    ```bash
@@ -294,6 +303,7 @@ The `--tag` parameter is used to specify which version of custom Docker images t
 - `airflow`
 - `spark`
 - `kafka`
+- `fake`
 
 #### Issue: Namespace already exists
 **Behavior**: The script will detect existing namespaces and continue without error.
@@ -356,3 +366,5 @@ To debug issues:
 - [Apache Spark Documentation](https://spark.apache.org/docs/latest/)
 - [Kubeflow Spark Operator Documentation](https://www.kubeflow.org/docs/components/spark-operator/overview/)
 - [MinIO Documentation](https://min.io/docs/)
+- [Kafka Documentation](https://kafka.apache.org/documentation/)
+- [Strimzi Kafka Operator Documentation](https://strimzi.io/docs/operators/latest/overview)
