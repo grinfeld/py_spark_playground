@@ -1,5 +1,9 @@
 # Helm Deployment Script - my_helm.sh
 
+## Disclaimer
+
+__The following part in any sense shouldn't be used in the production. The only reason I have created this: to allow me easily to change things for learning and developing purposes.__
+
 ## Overview
 
 `my_helm.sh` is a helper script for setting up and managing the current project on Kubernetes. 
@@ -78,7 +82,7 @@ After the initial setup for making changes in k8s, the better option is editing 
 
 - **`--service=<name>`** or **`-s=<name>`**  
   Specify which service to upgrade when using `--apply`.  
-  Valid values: `minio`, `postgres`, `airflow`, `spark`
+  Valid values: `minio`, `postgres`, `airflow`, `spark`, `kafka` (for full list, see [Service Names](README.md#Service-Names))
 
 __Note__: when using `--apply`, it doesn't change RBAC and so on, so if you need to make changes in RBAC, do it manually.
 
@@ -87,16 +91,21 @@ __Note__: when using `--apply`, it doesn't change RBAC and so on, so if you need
 - **`--help`** or **`-h`**  
   Display help information.
 
-#### Notes
+#### Service Names
 
 The names of `services` used in the script, in some cases, are different from those that appear in the helm. Here is the list of helm elements installed by `my_helm.sh`:
 ---------------------------------
-| **my_helm name** | **helm release name** |
-|------------------|-----------------------|
-| postgres         | postgres-release      |
-| minio            | minio-release         |
-| airflow          | airflow               |
-| spark            | spark                 |
+| **my_helm name** | **helm release name**  |
+|------------------|------------------------|
+| postgres         | postgres-release       |
+| minio            | minio-release          |
+| airflow          | airflow                |
+| spark            | spark                  |
+| strimzi          | strimzi-kafka-operator |
+| kafka            | kafka-cluster-crd      |
+| kafka-connect    | kafka-connect-crd      |
+| kafka-ui         | kafbat-ui              |
+| fake             | fake-release           |
 
 ## Usage Examples
 
@@ -115,8 +124,19 @@ This will:
 3. Create namespace `py-spark` (if it does not exist)
 4. Deploy PostgreSQL
 5. Deploy MinIO
+    * Expose port 9001
 6. Deploy Spark Operator
 7. Deploy Apache Airflow
+   1. Airflow API (and UI) Server
+      * Expose port 8080
+   2. Airflow Dag Processor
+   3. Airflow Scheduler
+   4. Airflow Triggerer
+8. Install Strimzi Kafka Operator
+   1. Single node Kafka Cluster
+   2. Kafka-UI
+      * Expose port 8084
+
 
 ### Example 2: Initial Setup Without Building Images
 
@@ -187,6 +207,19 @@ The script manages the following services:
 - **Helm Chart**: Official Apache Airflow chart
 - **Configuration**: Edit `airflow/values.yaml`
 
+### 4. Kafka
+- **Purpose**: Streaming platform
+- **Helm Chart**: Strimzi Kafka Operator.
+- **Configuration**: 
+- 1. Edit `strimzi-kafka/operator-values.yaml` to change strimzi operator configuration
+- 2. Edit `kafka-cluster-crd/values.yaml` to change kafka-cluster configuration and add/edit topics
+- 3. Edit `kafka-connect-crd/values.yaml` to change kafka-connect configuration.
+
+### 5. Fake Data Generator 
+- **Purpose**: Create Api to generate fake data and send it into kafka
+- **Helm Chart**: Python Fake data generator
+- **Configuration**: Edit `fake/values.yaml`
+
 ## Directory Structure
 
 ```
@@ -194,17 +227,11 @@ helm/
 ├── my_helm.sh              # Main deployment script
 ├── README.md               # This file
 ├── airflow/                # Airflow Helm values
-│   └── values.yaml
 ├── minio/                  # MinIO Helm chart
-│   ├── Chart.yaml
-│   ├── values.yaml
-│   └── templates/
 ├── postgres/               # PostgreSQL Helm chart
-│   ├── Chart.yaml
-│   ├── values.yaml
-│   └── templates/
 ├── spark/                  # Spark Operator Helm values
-│   └── values.yaml
+├── strimzi-kafka/          # Strimzi Kafka
+├── fake/                   # Web server to trigger generating fake data
 ├── scripts/                # Helper scripts
 │   ├── functions.sh
 │   ├── create_postgres.sh
@@ -229,6 +256,8 @@ When you run `my_helm.sh` without `--apply`:
    - MinIO
    - Spark Operator
    - Apache Airflow
+   - Single node Kafka Cluster
+   - Web server to generate fake data and send to Kafka
 
 ### Upgrade Workflow
 
@@ -249,6 +278,8 @@ To modify configuration for any service:
    - MinIO: `minio/values.yaml`
    - PostgreSQL: `postgres/values.yaml`
    - Spark: `spark/values.yaml`
+   - Kafka: `kafka/kafka-cluster.yaml`
+   - Fake Data Generator: `fake/values.yaml`
 
 2. Apply the changes:
    ```bash
@@ -281,6 +312,8 @@ The `--tag` parameter is used to specify which version of custom Docker images t
 - `postgres`
 - `airflow`
 - `spark`
+- `kafka`
+- `fake`
 
 #### Issue: Namespace already exists
 **Behavior**: The script will detect existing namespaces and continue without error.
@@ -343,3 +376,5 @@ To debug issues:
 - [Apache Spark Documentation](https://spark.apache.org/docs/latest/)
 - [Kubeflow Spark Operator Documentation](https://www.kubeflow.org/docs/components/spark-operator/overview/)
 - [MinIO Documentation](https://min.io/docs/)
+- [Kafka Documentation](https://kafka.apache.org/documentation/)
+- [Strimzi Kafka Operator Documentation](https://strimzi.io/docs/operators/latest/overview)

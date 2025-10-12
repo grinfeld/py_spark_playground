@@ -42,8 +42,8 @@ This structure is only for learning and/or development purposes.
 Don't use it as is in production - adjust it.
 Some of the components use an insecure approach.
 I added support for different profiles distinguished by environment variables,
-However, I have never tested it except for `hadoop` with `minIO`.
-Please be smart, update/change it according to your needs.
+However, I have never tested it except for `hadoop` with `minIO`, but it shouldn't be problems with both `glue` and `hive` (if I haven't missed some env variable :) ).
+Please be smart, _update/change it according to your needs._
 
 ## Project Overview
 
@@ -52,13 +52,13 @@ The purpose of this project is to create a local/dev playground for running Airf
 - Distributed data processing with Spark, with and without Spark
 - Data transformation and modeling with dbt
 - Lightweight analytics with DuckDB
+- Storing the streaming data into Iceberg tables with Iceberg Kafka Connect
 
 ## Key Features
 
 - **Multi-Environment Support**: Run locally with Docker Compose or deploy to Kubernetes using Helm
 - **Multiple Catalog Backends**: Support for Iceberg catalogs (Hadoop, AWS Glue, Hive Metastore -  I didn't test the last two, but they should work, since I had similar [project it worked](https://github.com/grinfeld/iceberg))
 - **Flexible Storage Options**: Works with MinIO (local S3-compatible storage) or AWS S3
-- **Production-Ready Patterns**: Demonstrates best practices for containerization, configuration management, and orchestration
 
 ## Architecture Components
 
@@ -82,6 +82,13 @@ The purpose of this project is to create a local/dev playground for running Airf
 - **Apache Iceberg** - Table format for data lakes
 - **MinIO** - S3-compatible object storage
 - **Multiple Catalog Options**: Hadoop, AWS Glue, Hive Metastore
+
+### Streaming
+- **Kafka Cluster** - single node kafka cluster for streaming data
+- * Includes Kafka-UI to view and manage Kafka Cluster
+- **Kafka Connect Iceberg Sink** - Kafka connect to stream data from kafka topic to Iceberg Table
+
+**Fake Data Generator** - to tests Kafka Connect I created small python web service with single Rest API that receives number of message, generates and sends these fake messages to Kafka topic. 
 
 ### Transformation Layer
 - **dbt (data build tool)** - SQL-based data transformation and modeling
@@ -149,6 +156,9 @@ ______ 2. In the case of Spark, the Airflow executor (worker) is a service where
 - Spark Master UI: http://localhost:8081
 - Spark History Server: http://localhost:18080
 - MinIO Console: http://localhost:9001 (minioadmin/minioadmin)
+- Fake Data Generator: Swagger http://localhost:8090/docs
+- Kafka Connect REST API: http://localhost:8083/connectors/iceberg-kafka-connect/
+- Kafka UI: http://localhost:8084
 
 ## Dockerfiles
 
@@ -163,8 +173,10 @@ For example, for k8s, all containers mount the `templates` folder. The idea is t
     * The part that deals with private/public key and SSH server permissions is relevant only for [Docker Compose](docker-compose-airflow.yml) scenario, too (and don't use it in production either).
     * The part with adding `spark` user to container is because in k8s dbt container becomes Spark Driver, and it's the reason why I add SPARK_DRIVER_HOST into dbt profiles and dbt_template, since executors should communicate with Spark Driver.
 3. **[Dockerfile.spark](Dockerfile.spark)**
+4. **[Dockerfile.fake](Dockerfile.fake)** small [python app](kafka/data_generator) for generating fake data and sending it to kafka.
+5. **[Dockerfile.kconnect](Dockerfile.kconnect)** docker files used to create kafka connect image with iceberg-kafka-connect.
 
-To reduce the time of building images and since [Dockerfile.airflow](Dockerfile.airflow) and [Dockerfile.dbt](Dockerfile.dbt) both use [Dockerfile.spark](Dockerfile.spark), those two images use a multi-stage build based on already existing spark image.
+__Note:__ To reduce the time of building images and since [Dockerfile.airflow](Dockerfile.airflow) and [Dockerfile.dbt](Dockerfile.dbt) both use [Dockerfile.spark](Dockerfile.spark), those two images use a multi-stage build based on already existing spark image.
 It means you should always ensure that `py-spark-spark` exists before building the other two. If you don't want to deal with it, just use the scripts I have created:
 1. For Docker Compose [docker_compose.sh](README.md#2-docker-compose)
 2. For k8s and Helm: [helm/my_helm.sh](README.md#1-kubernetes-with-helm)
@@ -224,10 +236,13 @@ py_spark/
 ├── helm/                         # Kubernetes/Helm deployment
 │   └── README.md                 # Helm deployment guide
 ├── dags/                         # Airflow DAG definitions
+├── kafka/                        # the python applications related to kafka
+│   └── data_generator            # python code for "fake" service to generate fake data
 ├── docker-compose-airflow.yml    # Docker Compose configuration
 ├── Dockerfile.airflow            # Airflow container image
 ├── Dockerfile.spark              # Spark container image
 ├── Dockerfile.dbt                # dbt container image
+├── Dockerfile.fake                # dbt container image
 ├── scripts/                      # Helper scripts
 ├── data/                         # Sample data files
 └── requirements.txt              # Python dependencies
@@ -285,7 +300,7 @@ The project uses environment variables for configuration. Example files are prov
 ### Catalog Options
 The platform supports multiple Iceberg catalog implementations:
 - **Hadoop Catalog** - File-based catalog (default for local development)
-- **AWS Glue Catalog** - AWS managed catalog service (not tested)
+- **AWS Glue Catalog** - AWS managed catalog service (not tested, but should work)
 - **Hive Metastore** - Traditional Hive catalog (not tested)
 
 ## Documentation
@@ -334,6 +349,7 @@ For production use, you should:
 - **Python**: 3.11
 - **dbt-core**: Latest with dbt-spark adapter
 - **PostgreSQL**: Latest (Airflow metadata)
+- **Kafka**: 4.1.0
 
 ## AI-Assisted Development
 
@@ -348,3 +364,6 @@ The project serves as a realistic example of AI-assisted development, including 
 - [Apache Iceberg Documentation](https://iceberg.apache.org/)
 - [dbt Documentation](https://docs.getdbt.com/)
 - [MinIO Documentation](https://min.io/docs/)
+- [Kafka Documentation](https://kafka.apache.org/documentation/)
+- [Strimzi Kafka Operator Documentation](https://strimzi.io/docs/operators/latest/overview)
+- [Iceberg Kafka Connect Documentation](https://iceberg.apache.org/docs/nightly/kafka-connect/)

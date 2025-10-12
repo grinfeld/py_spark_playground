@@ -1,0 +1,30 @@
+# Stage 1: Build the Iceberg Connect dependencies jar with Maven (Java 17)
+FROM maven:3.9.9-eclipse-temurin-17 AS builder
+
+# Workdir for the build
+WORKDIR /build
+
+# Copy only the pom to leverage Docker cache layers
+COPY kafka/iceberg-connect/pom.xml /build/pom.xml
+
+# Build the assembly (no sources/classes; just aggregated dependencies)
+RUN mvn -q -f /build/pom.xml clean package
+
+# Stage 2: Final Kafka Connect image with plugin installed
+FROM quay.io/strimzi/kafka:0.48.0-kafka-4.0.0
+
+USER root
+
+# Create plugin directory and copy the built jar from the builder stage
+RUN mkdir -p /opt/kafka/plugins/iceberg
+COPY --from=builder /build/target/iceberg-connect.jar /opt/kafka/plugins/iceberg/iceberg-connect.jar
+
+# Fix permissions for the Strimzi non-root user (1001)
+RUN chown -R 1001:0 /opt/kafka/plugins/iceberg \
+    && chmod -R g+rwX /opt/kafka/plugins/iceberg
+
+# Drop back to the image’s default user (1001)
+USER 1001
+
+# Expose Kafka Connect REST API port
+EXPOSE 8083

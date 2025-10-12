@@ -218,7 +218,6 @@ services:
   # MinIO Client for setup (bucket creation and policies)
   minio-client:
     image: minio/mc:latest
-    container_name: minio-client-airflow
     depends_on:
       - minio
     env_file:
@@ -316,6 +315,71 @@ services:
     depends_on:
       - spark-master
       - minio
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "9092:9092" 
+      - "9093:9093"
+    environment:
+      CLUSTER_ID: "kafka"
+      KAFKA_KRAFT_MODE: "true"
+      KAFKA_PROCESS_ROLES: controller,broker
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://kafka:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://kafka:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_LOG_DIRS: "/tmp/kraft-storage"
+    networks:
+      - spark-network
+
+  kafka-init:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - kafka
+      - fake
+    entrypoint: >
+      sh -c "
+          echo 'Waiting for Kafka to be ready...' && \
+          cub kafka-ready -b kafka:29092 1 30 && \
+          kafka-topics --bootstrap-server kafka:29092 --create --topic source-topic --partitions 1 --replication-factor 1
+      "
+    networks:
+      - spark-network
+
+  kafka-ui:
+    container_name: kafka-ui
+    image: ghcr.io/kafbat/kafka-ui:latest
+    ports:
+      - 8084:8080
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      DYNAMIC_CONFIG_ENABLED: 'true'
+    networks:
+      - spark-network
+
+  fake:
+    container_name: fake
+    image: py-spark-fake:latest
+    ports:
+      - "8090:8090"
+    environment:
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_TOPIC: source-topic
+    networks:
+      - spark-network
 
 volumes:
   postgres-db-volume:

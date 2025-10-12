@@ -2,6 +2,10 @@
 
 NAMESPACE=$1
 
+echo -e "--------------------------"
+echo -e "---------POSTGRES---------"
+echo -e "--------------------------"
+
 helm create postgres
 
 source "$HELM_BASE_DIR/scripts/define_service.sh" "postgres"

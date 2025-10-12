@@ -163,6 +163,7 @@ cython_debug/
 .vscode/
 
 # Spark specific
+spark-logs/
 spark-warehouse/
 derby.log
 metastore_db/
@@ -184,6 +185,7 @@ Thumbs.db
 # Log files
 *.log
 logs/
+ivy/
 
 # Configuration files that might contain secrets
 config.ini

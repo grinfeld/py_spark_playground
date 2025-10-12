@@ -209,3 +209,14 @@ subjects:
   name: airflow-worker
   namespace: $NAMESPACE
 EOF
+
+set +e
+PORT_BUSY=$(lsof -nP -i ":8080" -a -c kubectl|awk '{print $2}'|sed -n '2p' || true)
+if [ -n "$PORT_BUSY" ]; then
+  echo "killing $PORT_BUSY"
+  kill "$PORT_BUSY"
+fi
+kubectl port-forward svc/airflow-api-server 8080:8080 --namespace "$NAMESPACE" >/dev/null 2>&1 &
+PID=$!
+echo "Airflow port-forward PID is $PID"
+set -e

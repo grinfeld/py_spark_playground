@@ -126,3 +126,4 @@ set -e
 
 helm upgrade --install minio-release ./minio --namespace "$NAMESPACE" --wait
 
+source "$HELM_BASE_DIR/scripts/make_port_forward.sh" "$NAMESPACE" "minio" "9001" "9001" "app.kubernetes.io/name=minio,app.kubernetes.io/instance=minio-release"
