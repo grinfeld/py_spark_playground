@@ -126,3 +126,7 @@ set -e
 
 helm upgrade --install minio-release ./minio --namespace "$NAMESPACE" --wait
 
+export MINIO_POD_NAME=$(kubectl get pods --namespace py-spark -l "app.kubernetes.io/name=minio,app.kubernetes.io/instance=minio-release" -o jsonpath="{.items[0].metadata.name}")
+kubectl --namespace "$NAMESPACE" port-forward "$MINIO_POD_NAME" 9001:9001 >/dev/null 2>&1 &
+PID=$!
+echo "$MINIO_POD_NAME port-forward PID is $PID"

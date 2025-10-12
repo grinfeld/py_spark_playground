@@ -83,6 +83,10 @@ The purpose of this project is to create a local/dev playground for running Airf
 - **MinIO** - S3-compatible object storage
 - **Multiple Catalog Options**: Hadoop, AWS Glue, Hive Metastore
 
+### Streaming
+- **Kafka Cluster** - single node kafka cluster for streaming data
+* Includes Kafka-UI to view and manage Kafka Cluster
+
 ### Transformation Layer
 - **dbt (data build tool)** - SQL-based data transformation and modeling
     - Staging models - Data cleaning and standardization
@@ -285,7 +289,7 @@ The project uses environment variables for configuration. Example files are prov
 ### Catalog Options
 The platform supports multiple Iceberg catalog implementations:
 - **Hadoop Catalog** - File-based catalog (default for local development)
-- **AWS Glue Catalog** - AWS managed catalog service (not tested)
+- **AWS Glue Catalog** - AWS managed catalog service (not tested, but should work)
 - **Hive Metastore** - Traditional Hive catalog (not tested)
 
 ## Documentation
@@ -334,6 +338,7 @@ For production use, you should:
 - **Python**: 3.11
 - **dbt-core**: Latest with dbt-spark adapter
 - **PostgreSQL**: Latest (Airflow metadata)
+- **Kafka**: 4.1.0
 
 ## AI-Assisted Development
 
@@ -348,3 +353,5 @@ The project serves as a realistic example of AI-assisted development, including 
 - [Apache Iceberg Documentation](https://iceberg.apache.org/)
 - [dbt Documentation](https://docs.getdbt.com/)
 - [MinIO Documentation](https://min.io/docs/)
+- [Kafka Documentation](https://kafka.apache.org/documentation/)
+- [Strimzi Kafka Operator Documentation](https://strimzi.io/docs/operators/latest/overview)

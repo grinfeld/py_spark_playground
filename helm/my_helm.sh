@@ -16,7 +16,7 @@ print_help() {
   echo -e "--change-helm \n\tIf you want your helm cache/config/etc to be defined under this project folder. \n\tIf set, e.g. './my_helm.sh --change-helm' they HELM env variables will be added into your '~/.zshrc' (sorry, Mac only now :) ). \n\t Using this option is not recommended, only if you run different k8s cluster per project. \n\t Note: If you have different and/or more than one projects with helm/k8s, don't use this option, just relay on default helm directory or whatever you already use"
   echo -e "\nAfter initial built, you'll be able to change any of your configuration by editing 'helm/[service name]/values.yaml'. You can't to combine initial setup and apply operation.\n"
   echo -e "--apply \n\t Signaling not to perform initial setup but upgrade the existed helm. \n\tIt comes with conjunction with following --service argument. \n"
-  echo -e "--service ('-s') \n\t Setting service to be upgraded by '--apply' operation. \n\t The usage: './my_helm.sh --apply -s=[service name]'. \n\tThe service name couldn't be empty and limited to one of the followed: minio, postgres, airflow, spark."
+  echo -e "--service ('-s') \n\t Setting service to be upgraded by '--apply' operation. \n\t The usage: './my_helm.sh --apply -s=[service name]'. \n\tThe service name couldn't be empty and limited to one of the followed: minio, postgres, airflow, spark, kafka."
 }
 
 # Parse named arguments
@@ -113,16 +113,20 @@ if [[ "$APPLY" == "true" ]]; then
       set +e
       kubectl -n "$NAMESPACE" delete jobs minio-post-deploy-job
       set -e
-      helm upgrade --install minio-release "$HELM_BASE_DIR/minio" --namespace "$NAMESPACE" --wait
+      helm upgrade minio-release "$HELM_BASE_DIR/minio" --namespace "$NAMESPACE" --wait
       ;;
     "postgres")
-      helm upgrade --install postgres-release "$HELM_BASE_DIR/postgres" --namespace "$NAMESPACE" --wait
+      helm upgrade postgres-release "$HELM_BASE_DIR/postgres" --namespace "$NAMESPACE" --wait
       ;;
     "airflow")
-      helm upgrade --install airflow apache-airflow/airflow --namespace "$NAMESPACE" --values "$HELM_BASE_DIR/airflow/values.yaml" --wait
+      helm upgrade airflow apache-airflow/airflow --namespace "$NAMESPACE" --values "$HELM_BASE_DIR/airflow/values.yaml" --wait
       ;;
     "spark")
-      helm upgrade --install spark spark-operator/spark-operator --namespace "$NAMESPACE" --values "$HELM_BASE_DIR/spark/values.yaml" --wait
+      helm upgrade spark spark-operator/spark-operator --namespace "$NAMESPACE" --values "$HELM_BASE_DIR/spark/values.yaml" --wait
+      ;;
+    "kafka")
+      kubectl apply -f "$HELM_BASE_DIR/strimzi-kafka/kafka-cluster.yaml" -n "$NAMESPACE"
+      kubectl wait kafka/kafka-cluster --for=condition=Ready --timeout=300s -n "$NAMESPACE"
       ;;
     *)
       echo "Service should be one of the following names: minio, postgres, airflow, spark"
@@ -132,11 +136,12 @@ if [[ "$APPLY" == "true" ]]; then
   esac
 else
   if [[ "$TAG" == "" ]]; then
-    echo "You should set --tag (or -t), since it's mandatory argument when you build image or during initial setup. We build the helm values based on tag. Use 'my_helm.sh -h' to see help "
+    echo "You should set --tag (or -t), since it's mandatory argument when you build image or during initial setup. We build the helm values based on tag. Use 'my_helm.sh -h' to see the help "
     exit
   fi
   source ./scripts/create_postgres.sh "$NAMESPACE"
   source ./scripts/create_minio.sh "$NAMESPACE"
   source ./scripts/create_spark.sh "$NAMESPACE"
   source ./scripts/create_airflow.sh "$NAMESPACE" "$TAG"
+  source ./scripts/create_kafka.sh "$NAMESPACE"
 fi

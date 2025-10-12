@@ -78,7 +78,7 @@ After the initial setup for making changes in k8s, the better option is editing 
 
 - **`--service=<name>`** or **`-s=<name>`**  
   Specify which service to upgrade when using `--apply`.  
-  Valid values: `minio`, `postgres`, `airflow`, `spark`
+  Valid values: `minio`, `postgres`, `airflow`, `spark`, `kafka`
 
 __Note__: when using `--apply`, it doesn't change RBAC and so on, so if you need to make changes in RBAC, do it manually.
 
@@ -97,6 +97,7 @@ The names of `services` used in the script, in some cases, are different from th
 | minio            | minio-release         |
 | airflow          | airflow               |
 | spark            | spark                 |
+| kafka            | strimzi-kafka-operator|
 
 ## Usage Examples
 
@@ -115,8 +116,19 @@ This will:
 3. Create namespace `py-spark` (if it does not exist)
 4. Deploy PostgreSQL
 5. Deploy MinIO
+    * Expose port 9001
 6. Deploy Spark Operator
 7. Deploy Apache Airflow
+   1. Airflow API (and UI) Server
+      * Expose port 8080
+   2. Airflow Dag Processor
+   3. Airflow Scheduler
+   4. Airflow Triggerer
+8. Install Strimzi Kafka Operator
+   1. Single node Kafka Cluster
+   2. Kafka-UI
+      * Expose port 8084
+
 
 ### Example 2: Initial Setup Without Building Images
 
@@ -187,6 +199,11 @@ The script manages the following services:
 - **Helm Chart**: Official Apache Airflow chart
 - **Configuration**: Edit `airflow/values.yaml`
 
+### 4. Strimzi Kafka Operator
+- **Purpose**: Streaming platform
+- **Helm Chart**: Strimzi Kafka Operator.
+- **Configuration**: Edit `kafka/kafka-cluster.yaml` for kafka cluster and `kafka/operator-values.yaml` for Strimzi kafka operator.
+
 ## Directory Structure
 
 ```
@@ -194,17 +211,10 @@ helm/
 ├── my_helm.sh              # Main deployment script
 ├── README.md               # This file
 ├── airflow/                # Airflow Helm values
-│   └── values.yaml
 ├── minio/                  # MinIO Helm chart
-│   ├── Chart.yaml
-│   ├── values.yaml
-│   └── templates/
 ├── postgres/               # PostgreSQL Helm chart
-│   ├── Chart.yaml
-│   ├── values.yaml
-│   └── templates/
 ├── spark/                  # Spark Operator Helm values
-│   └── values.yaml
+├── strimzi-kafka/          # Strimzi Kafka
 ├── scripts/                # Helper scripts
 │   ├── functions.sh
 │   ├── create_postgres.sh
@@ -229,6 +239,7 @@ When you run `my_helm.sh` without `--apply`:
    - MinIO
    - Spark Operator
    - Apache Airflow
+   - Single node Kafka Cluster
 
 ### Upgrade Workflow
 
@@ -249,6 +260,7 @@ To modify configuration for any service:
    - MinIO: `minio/values.yaml`
    - PostgreSQL: `postgres/values.yaml`
    - Spark: `spark/values.yaml`
+   - Kafka: `kafka/kafka-cluster.yaml`
 
 2. Apply the changes:
    ```bash
@@ -281,6 +293,7 @@ The `--tag` parameter is used to specify which version of custom Docker images t
 - `postgres`
 - `airflow`
 - `spark`
+- `kafka`
 
 #### Issue: Namespace already exists
 **Behavior**: The script will detect existing namespaces and continue without error.
