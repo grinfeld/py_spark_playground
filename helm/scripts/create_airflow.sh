@@ -209,3 +209,7 @@ subjects:
   name: airflow-worker
   namespace: $NAMESPACE
 EOF
+
+kubectl port-forward svc/airflow-api-server 8080:8080 --namespace "$NAMESPACE" >/dev/null 2>&1 &
+PID=$!
+echo "Airflow port-forward PID is $PID"

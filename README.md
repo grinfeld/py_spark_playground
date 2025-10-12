@@ -83,6 +83,10 @@ The purpose of this project is to create a local/dev playground for running Airf
 - **MinIO** - S3-compatible object storage
 - **Multiple Catalog Options**: Hadoop, AWS Glue, Hive Metastore
 
+### Streaming
+- **Kafka Cluster** - single node kafka cluster for streaming data
+* Includes Kafka-UI to view and manage Kafka Cluster
+
 ### Transformation Layer
 - **dbt (data build tool)** - SQL-based data transformation and modeling
     - Staging models - Data cleaning and standardization
@@ -149,6 +153,8 @@ ______ 2. In the case of Spark, the Airflow executor (worker) is a service where
 - Spark Master UI: http://localhost:8081
 - Spark History Server: http://localhost:18080
 - MinIO Console: http://localhost:9001 (minioadmin/minioadmin)
+- Fake Data Generator: Swagger http://localhost:8090/docs
+- Kafka UI: http://localhost:8084
 
 ## Dockerfiles
 
@@ -163,8 +169,9 @@ For example, for k8s, all containers mount the `templates` folder. The idea is t
     * The part that deals with private/public key and SSH server permissions is relevant only for [Docker Compose](docker-compose-airflow.yml) scenario, too (and don't use it in production either).
     * The part with adding `spark` user to container is because in k8s dbt container becomes Spark Driver, and it's the reason why I add SPARK_DRIVER_HOST into dbt profiles and dbt_template, since executors should communicate with Spark Driver.
 3. **[Dockerfile.spark](Dockerfile.spark)**
+4. **[Dockerfile.fake](Dockerfile.fake)** small [python app](kafka/data_generator) for generating fake data and sending it to kafka.
 
-To reduce the time of building images and since [Dockerfile.airflow](Dockerfile.airflow) and [Dockerfile.dbt](Dockerfile.dbt) both use [Dockerfile.spark](Dockerfile.spark), those two images use a multi-stage build based on already existing spark image.
+__Note:__ To reduce the time of building images and since [Dockerfile.airflow](Dockerfile.airflow) and [Dockerfile.dbt](Dockerfile.dbt) both use [Dockerfile.spark](Dockerfile.spark), those two images use a multi-stage build based on already existing spark image.
 It means you should always ensure that `py-spark-spark` exists before building the other two. If you don't want to deal with it, just use the scripts I have created:
 1. For Docker Compose [docker_compose.sh](README.md#2-docker-compose)
 2. For k8s and Helm: [helm/my_helm.sh](README.md#1-kubernetes-with-helm)
@@ -224,10 +231,13 @@ py_spark/
 ├── helm/                         # Kubernetes/Helm deployment
 │   └── README.md                 # Helm deployment guide
 ├── dags/                         # Airflow DAG definitions
+├── kafka/                        # the python applications related to kafka
+│   └── data_generator            # python code for "fake" service to generate fake data
 ├── docker-compose-airflow.yml    # Docker Compose configuration
 ├── Dockerfile.airflow            # Airflow container image
 ├── Dockerfile.spark              # Spark container image
 ├── Dockerfile.dbt                # dbt container image
+├── Dockerfile.fake                # dbt container image
 ├── scripts/                      # Helper scripts
 ├── data/                         # Sample data files
 └── requirements.txt              # Python dependencies
@@ -285,7 +295,7 @@ The project uses environment variables for configuration. Example files are prov
 ### Catalog Options
 The platform supports multiple Iceberg catalog implementations:
 - **Hadoop Catalog** - File-based catalog (default for local development)
-- **AWS Glue Catalog** - AWS managed catalog service (not tested)
+- **AWS Glue Catalog** - AWS managed catalog service (not tested, but should work)
 - **Hive Metastore** - Traditional Hive catalog (not tested)
 
 ## Documentation
@@ -334,6 +344,7 @@ For production use, you should:
 - **Python**: 3.11
 - **dbt-core**: Latest with dbt-spark adapter
 - **PostgreSQL**: Latest (Airflow metadata)
+- **Kafka**: 4.1.0
 
 ## AI-Assisted Development
 
@@ -348,3 +359,5 @@ The project serves as a realistic example of AI-assisted development, including 
 - [Apache Iceberg Documentation](https://iceberg.apache.org/)
 - [dbt Documentation](https://docs.getdbt.com/)
 - [MinIO Documentation](https://min.io/docs/)
+- [Kafka Documentation](https://kafka.apache.org/documentation/)
+- [Strimzi Kafka Operator Documentation](https://strimzi.io/docs/operators/latest/overview)
