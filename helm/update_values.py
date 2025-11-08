@@ -26,21 +26,25 @@ def generate_new_values(values: str, original_yaml):
     override_data = yaml.safe_load(values)
 
     merged = deep_merge(original_yaml, override_data)
-
-    merged["service"]["port"] = None
+    if "service" in merged and "ports" in merged["service"]:
+        merged["service"]["port"] = None
     return merged
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--release-name", "-r", help="Release Name", required=True)
-    parser.add_argument("--values", "-v", help="Value to override in values yaml", required=True)
-    parser.add_argument("--path", "-p", help="Path To values.yaml for specific release", required=False)
-    args = parser.parse_args()
-    path = f"{args.release_name}/values.yaml" if args.path is None else args.path
-    original_yml = open_file_for_read(path)
-    new_yml = generate_new_values(args.values, original_yml)
-    if original_yml == new_yml:
-        dump_yaml(path, new_yml)
-        print("true")
-    else:
-        print("false")
+    try:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--release-name", "-r", help="Release Name", required=True)
+        parser.add_argument("--values", "-v", help="Value to override in values yaml", required=True)
+        parser.add_argument("--path", "-p", help="Path To values.yaml for specific release", required=False)
+        args = parser.parse_args()
+
+        path = f"{args.release_name}/values.yaml" if args.path is None else args.path
+        original_yml = open_file_for_read(path)
+        new_yml = generate_new_values(args.values, original_yml)
+        if original_yml == new_yml:
+            dump_yaml(path, new_yml)
+            print("true")
+        else:
+            print("false")
+    except Exception as e:
+        print(str(e))

@@ -6,6 +6,9 @@ from faker import Faker
 from faker.providers import internet
 from fastapi import FastAPI, BackgroundTasks
 from confluent_kafka import Producer
+import logging
+
+logger = logging.getLogger(__name__)
 
 seconds_in_year = 3600 * 24 * 60 * 60
 conf = {'bootstrap.servers': os.getenv("KAFKA_BROKERS", "")}
@@ -13,6 +16,10 @@ producer = Producer(**conf)
 kafka_topic = os.getenv("KAFKA_TOPIC")
 fake = Faker()
 fake.add_provider(internet)
+
+def delivery_report(err, msg):
+    if err is not None:
+        logger.error(f"Message delivery failed: {err}")
 
 def generate_single(occurrences: int):
     now = int(time.time())
@@ -32,9 +39,9 @@ def generate_single(occurrences: int):
             "Subscription_Date": now - fake.random_int(1, seconds_in_year),
             "Website": fake.url(),
         })
-        producer.produce(kafka_topic, value=msg.rstrip())
-
-
+        producer.produce(kafka_topic, value=msg.rstrip(), delivery_report=delivery_report)
+    producer.flush()
+    logger.info(f"Sent to kafka {occurrences} events")
 
 app = FastAPI()
 

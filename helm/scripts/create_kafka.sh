@@ -161,11 +161,9 @@ echo -e "-------------------------"
 echo -e "------KAFKA CONNECT------"
 echo -e "-------------------------"
 
-# Install Kafka-Connect
+# Install Kafka-Connect CRD
 helm create kafka-connect-crd
-
 rm -rf "$HELM_BASE_DIR/kafka-connect-crd/templates/"
-
 mkdir -p "$HELM_BASE_DIR/kafka-connect-crd/templates/"
 
 cat > "$HELM_BASE_DIR/kafka-connect-crd/templates/kafka-connect-resources.yaml" << EOF
@@ -209,18 +207,6 @@ spec:
   {{- end }}
   config:
 {{ toYaml .Values.kafkaConnect.config | nindent 4 }}
----
-apiVersion: kafka.strimzi.io/v1beta2
-kind: KafkaConnector
-metadata:
-  name: {{ .Values.kafkaConnect.name }}
-  labels:
-    strimzi.io/cluster: {{ .Values.kafkaConnect.name }}
-spec:
-  class: {{ .Values.kafkaConnector.class | quote }}
-  tasksMax: {{ .Values.kafkaConnector.tasksMax }}
-  config:
-{{ toYaml .Values.kafkaConnector.config | nindent 4 }}
 EOF
 
 cat > "$HELM_BASE_DIR/kafka-connect-crd/values.yaml" << EOF
@@ -252,11 +238,42 @@ kafkaConnect:
     config.storage.replication.factor: 1
     offset.storage.replication.factor: 1
     status.storage.replication.factor: 1
+EOF
 
-kafkaConnector:
-  class: org.apache.iceberg.connect.IcebergSinkConnector
-  tasksMax: 2
+helm upgrade --install kafka-connect-crd ./kafka-connect-crd -n "$NAMESPACE" --wait
+
+sleep 5
+
+# Wait for KafkaConnect to be ready (so that its pod exists before port-forwarding)
+kubectl wait --for=condition=Ready pod -l strimzi.io/name=iceberg-kafka-connect-connect -n "$NAMESPACE" --timeout=300s
+
+# Installing connector itself
+helm create kafka-connector-crd
+rm -rf "$HELM_BASE_DIR/kafka-connector-crd/templates/"
+mkdir -p "$HELM_BASE_DIR/kafka-connector-crd/templates/"
+
+cat > "$HELM_BASE_DIR/kafka-connector-crd/templates/kafka-connector-resources.yaml" << EOF
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnector
+metadata:
+  name: {{ .Values.kafkaConnector.name }}
+  labels:
+    strimzi.io/cluster: iceberg-kafka-connect
+spec:
+  class: {{ .Values.kafkaConnector.class | quote }}
+  tasksMax: {{ .Values.kafkaConnector.tasksMax }}
   config:
+{{ toYaml .Values.kafkaConnector.config | nindent 4 }}
+EOF
+
+cat > "$HELM_BASE_DIR/kafka-connector-crd/values.yaml" << EOF
+kafkaConnector:
+  tasksMax: 1
+  class: org.apache.iceberg.connect.IcebergSinkConnector
+  name: iceberg-kafka-connect
+  config:
+    connector.class: org.apache.iceberg.connect.IcebergSinkConnector
+    tasks.max: 1
     topics: source-topic
     iceberg.catalog: mycatalog
     iceberg.catalog.type: hadoop
@@ -285,20 +302,15 @@ kafkaConnector:
     value.converter.schemas.enable: false
     key.converter: org.apache.kafka.connect.converters.ByteArrayConverter
     key.converter.schemas.enable: false
-    transforms.TimestampConverter.type: org.apache.kafka.connect.transforms.TimestampConverter$Value
+    transforms: TimestampConverter
+    transforms.TimestampConverter.type: org.apache.kafka.connect.transforms.TimestampConverter\$Value
     transforms.TimestampConverter.field: Subscription_Date
     transforms.TimestampConverter.unix.precision: seconds
     transforms.TimestampConverter.target.type: Timestamp
-    transforms: TimestampConverter
     iceberg.control.commit.interval-ms: 1000
 EOF
 
-helm upgrade --install kafka-connect-crd ./kafka-connect-crd -n "$NAMESPACE" --wait
-
-sleep 5
-
-# Wait for KafkaConnect to be ready (so that its pod exists before port-forwarding)
-kubectl wait --for=condition=Ready pod -l strimzi.io/name=iceberg-kafka-connect-connect -n "$NAMESPACE" --timeout=300s
+helm upgrade --install kafka-connector-crd ./kafka-connector-crd -n "$NAMESPACE" --wait
 
 source "$HELM_BASE_DIR/scripts/make_port_forward.sh" "$NAMESPACE" "Kafka Connect" "8083" "8083" "strimzi.io/name=iceberg-kafka-connect-connect"
 

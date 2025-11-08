@@ -104,6 +104,7 @@ The names of `services` used in the script, in some cases, are different from th
 | strimzi          | strimzi-kafka-operator |
 | kafka            | kafka-cluster-crd      |
 | kafka-connect    | kafka-connect-crd      |
+| kafka-connector  | kafka-connector-crd    |
 | kafka-ui         | kafbat-ui              |
 | fake             | fake-release           |
 
@@ -224,21 +225,28 @@ The script manages the following services:
 
 ```
 helm/
-├── my_helm.sh              # Main deployment script
-├── README.md               # This file
-├── airflow/                # Airflow Helm values
-├── minio/                  # MinIO Helm chart
-├── postgres/               # PostgreSQL Helm chart
-├── spark/                  # Spark Operator Helm values
-├── strimzi-kafka/          # Strimzi Kafka
-├── fake/                   # Web server to trigger generating fake data
-├── scripts/                # Helper scripts
-│   ├── functions.sh
+├── my_helm.sh                  # Main deployment script
+├── README.md                   # This file
+├── airflow/                    # Airflow Helm values
+├── minio/                      # MinIO Helm chart
+├── postgres/                   # PostgreSQL Helm chart
+├── spark/                      # Spark Operator Helm values
+├── strimzi-kafka/              # Strimzi Kafka
+├── fake/                       # Web server to trigger generating fake data
+├── scripts/                    # Helper scripts and speicfic services creationg scripts
+│   ├── functions.sh            
+│   ├── create_deployment.sh
+│   ├── make_port_forward.sh
+│   ├── define_post_deploy.sh
+│   ├── define_service.sh
+│   ├── define_statefulset.sh
 │   ├── create_postgres.sh
 │   ├── create_minio.sh
 │   ├── create_spark.sh
+│   ├── create_fake.sh
+│   ├── create_kafka.sh
 │   └── create_airflow.sh
-└── templates/              # Kubernetes templates
+└── templates/                  # Kubernetes templates
 ```
 
 ## Workflow

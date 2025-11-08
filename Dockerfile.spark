@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN cd /usr/lib/ && ln -s -f python3.11 /usr/bin/python3 && ln -s -f python3.11 /usr/bin/python
 
-RUN rm -rf /var/lib/apt/lists/*
+# RUN rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /home/spark/ && chown -R spark:spark /home/spark/
 

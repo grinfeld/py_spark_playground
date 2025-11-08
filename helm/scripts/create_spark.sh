@@ -17,6 +17,7 @@ mkdir -p "$HELM_BASE_DIR/spark/"
 # both 2 settings above - fix starting the controller pod. Opposite to webhook - it requires nonRoot user.
 # spark.jobNamespaces: [$NAMESPACE] - defines what namespace spark operator should launch spark pods (driver and executors)
 # spark.namespaces: [$NAMESPACE] - defines what namespace spark operator should watch for event. It could be more than one namespace
+# UID 185 - is spark user (named: 'spark') according to official spark image.
 cat > "$HELM_BASE_DIR/spark/values.yaml" << EOF
 controller:
   securityContext:
@@ -40,21 +41,8 @@ EOF
 
 helm upgrade --install spark spark-operator/spark-operator --namespace "$NAMESPACE" --values "$HELM_BASE_DIR/spark/values.yaml" --wait
 
-# We need to create roles. Naming is important:
-# subjects:
-#   - kind: ServiceAccount
-#     name: spark-spark-operator-webhook
-#     namespace: $NAMESPACE
-
-# subjects:
-#   - kind: ServiceAccount
-#     name: spark-spark-operator-controller
-#     namespace: $NAMESPACE
-
-# spark-operator creates roles by using name from
-# 'helm upgrade --install spark spark-operator/spark-operator ....' - here the name is spark
-# and appends '-spark-operator-controller' and 'spark-spark-operator-webhook'
-
+# I am not sure - the following Role/Binding is required, but it hasn't worked for me without it. The possible reason:
+# because I was playing with roles when operator had already existed.
 cat <<EOF | kubectl apply -f -
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -94,7 +82,8 @@ subjects:
     name: spark-spark-operator-webhook
     namespace: $NAMESPACE
 EOF
-
+# just workaround not to deal with errors when ConfigMap is empty in my case - creating empty ConfigMap.
+# Should other way - more correct way, to deal with
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap

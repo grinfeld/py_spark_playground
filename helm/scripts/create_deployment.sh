@@ -7,6 +7,7 @@ ENVS=""
 IMAGE=""
 SERVICE=""
 ENVS=""
+RBAC="false"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -27,6 +28,9 @@ while [ "$#" -gt 0 ]; do
       ;;
     -pf=*)
       PORTFORWARD="${1#*=}"
+      ;;
+    -r)
+      RBAC="true"
       ;;
     *)
       ENVS="$@"

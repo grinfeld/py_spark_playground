@@ -6,8 +6,8 @@ set -e
 docker build -t "py-spark-spark:$1" -f Dockerfile.spark .
 docker build --build-arg PY_SPARK_VERSION="$1" -t "py-spark-dbt:$1" -f Dockerfile.dbt .
 docker build --build-arg PY_SPARK_VERSION="$1" -t "py-spark-airflow:$1" -f Dockerfile.airflow .
-docker build -t "py-spark-fake:$1" -f Dockerfile.fake .
 docker build -t "py-spark-kconnect:$1" -f Dockerfile.kconnect .
+docker build --build-arg PY_SPARK_VERSION="$1" -t "py-spark-fake:$1" -f Dockerfile.fake .
 
 if [[ $1 != "latest" ]]; then
   docker tag "py-spark-spark:$1" py-spark-spark:latest

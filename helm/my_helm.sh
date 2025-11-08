@@ -102,6 +102,8 @@ else
     echo "Namespace $NAMESPACE already exists"
 fi
 
+helm repo update
+
 if [[ "$APPLY" == "true" ]]; then
   if [[ "$SERVICE" == "" ]]; then
     echo "When applying helm for specific service, you should set service name"
@@ -161,19 +163,5 @@ else
   source ./scripts/create_spark.sh "$NAMESPACE"
   source ./scripts/create_airflow.sh "$NAMESPACE" "$TAG"
   source ./scripts/create_kafka.sh "$NAMESPACE" "$TAG"
-
-  if [ -z "$KAFKA_BOOTSTRAP" ]; then
-    exit
-  fi
-  echo "!!!!!!!!! $KAFKA_BOOTSTRAP"
-  # NEW (portable and safe)
-  FAKE_ENVS=$(cat <<EOF
-env:
-  PORT: 8090
-  KAFKA_BROKERS: $KAFKA_BOOTSTRAP
-  KAFKA_TOPIC: source-topic
-EOF
-  )
-  echo "!!!!!!!! starting"
-  source ./scripts/create_deployment.sh "-n=$NAMESPACE" "-s=fake" "-i=py-spark-fake" "-t=$TAG" "-p=8090" "-pf=8090" "$FAKE_ENVS"
+  source ./scripts/create_fake.sh "$NAMESPACE" "$TAG"
 fi
