@@ -7,6 +7,7 @@ CHANGE_HELM="false"
 APPLY="false"
 SERVICE=""
 NAMESPACE="py-spark"
+WITHOUT=""
 
 print_help() {
   echo -e "--help ('-h') \n\tDisplays help."
@@ -53,6 +54,9 @@ while [ "$#" -gt 0 ]; do
       ;;
     -s=*)
       SERVICE="${1#*=}"
+      ;;
+    -v=*)
+      WITHOUT="${1#*=}"
       ;;
     --help)
       print_help
@@ -138,11 +142,12 @@ if [[ "$APPLY" == "true" ]]; then
       ;;
     "kafka-connect")
       kubectl wait kafka/kafka --for=condition=Ready --timeout=300s -n "$NAMESPACE"
-      helm upgrade --install kafka-connect-crd "$HELM_BASE_DIR/kafka-connect-crd" -n "$NAMESPACE" --wait
+      helm upgrade --install kafka-connect-crd "$HELM_BASE_DIR/kafka-connect-crd" -n "$NAMESPACE" --values "$HELM_BASE_DIR/kafka-connect-crd/values.yaml" --wait
+      helm upgrade --install kafka-connect-crd "$HELM_BASE_DIR/kafka-connector-crd" -n "$NAMESPACE" --values "$HELM_BASE_DIR/kafka-connector-crd/values.yaml" --wait
       ;;
     "kafka-ui")
       kubectl wait kafka/kafka --for=condition=Ready --timeout=300s -n "$NAMESPACE"
-      helm upgrade kafbat-ui kafbat-ui/kafka-ui -f "$HELM_BASE_DIR/kafbat-ui/values.yaml" -n "$NAMESPACE" --wait
+      helm upgrade kafbat-ui kafbat-ui/kafka-ui "$HELM_BASE_DIR/kafbat-ui" -n "$NAMESPACE" --values "$HELM_BASE_DIR/kafka-connector-crd/values.yaml" --wait
       ;;
     "fake")
       helm upgrade "fake-release" "$HELM_BASE_DIR/fake" --namespace "$NAMESPACE" --values "$HELM_BASE_DIR/fake/values.yaml" --wait
@@ -162,6 +167,6 @@ else
   source ./scripts/create_minio.sh "$NAMESPACE"
   source ./scripts/create_spark.sh "$NAMESPACE"
   source ./scripts/create_airflow.sh "$NAMESPACE" "$TAG"
-  source ./scripts/create_kafka.sh "$NAMESPACE" "$TAG"
-  source ./scripts/create_fake.sh "$NAMESPACE" "$TAG"
+  #source ./scripts/create_kafka.sh "$NAMESPACE" "$TAG"
+  #source ./scripts/create_fake.sh "$NAMESPACE" "$TAG"
 fi

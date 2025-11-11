@@ -226,6 +226,14 @@ Otherwise, you can just remove everything after `if` as follows:
 
 For more information, refer to [dbt here](dbt/README.md).
 
+### Spark SQL DAG
+
+This dag is for debugging purposes. It executes spark sql over Iceberg tables. It should be executed manually, and it has 2 parameters:
+1. warehouse name - data warehouse name 
+2. spark-sql - sql to execute
+
+The 5 first lines of result is printed in logs
+
 ## Project Structure
 
 ```

@@ -5,8 +5,11 @@ from typing import Set, Dict, Callable, Any
 
 import boto3
 import yaml
+import logging
 
 from .config_manager import ConfigManager
+
+logger = logging.getLogger(__name__)
 
 class Type(ABC):
     @abstractmethod
@@ -67,8 +70,8 @@ class Overrider:
         return conf
 
     @staticmethod
-    def override_template_fields(spark_template: str, configs: dict, job_file_name: str, env_vars: dict, load_dict_func) -> dict:
-        main_file = f"local:///opt/airflow/dags/spark/{job_file_name}"
+    def override_template_fields(spark_template: str, configs: dict, job_file_name: str, env_vars: dict, load_dict_func, parent_path) -> dict:
+        main_file = f"{parent_path}{job_file_name}"
         spark_image_versions = os.getenv("SPARK_IMAGE_VERSION", "latest")
 
         spec_dict = load_dict_func(spark_template)
@@ -93,8 +96,19 @@ class Overrider:
             "spec": spec_dict
         }
 
-    def override_with(self, job_file_name: str, env_vars: dict) -> dict:
-        return Overrider.override_template_fields(self.spark_template, self.configs, job_file_name, env_vars, self.load_dict_func)
+    def override_with(self, job_file_name: str, env_vars: dict, parent_path : str = "local:///opt/airflow/dags/spark/") -> dict:
+        """
+        Loads template from s3 (json or yaml), sets spark job file and environment variables
+        :param job_file_name: spark job source file
+        :param env_vars: to set on spark container
+        :param parent_path: by default, it's locally, and it means that script sets spark code to be /opt/airflow/dags/spark/{job_file_name}.
+                            You can change it another path or s3 path. In case of s3, you'll probably need to set additional parameters to for master to be
+                            able to interact with s3.
+                            It's my fault, since I choose to use custom env variable 'STORAGE_' and translate them to spark conf parameter,
+                            but SparkKubernetesOperator maybe we'll need aws credentials as they appear in AWS documentation to send the code to spark driver and etc.
+        :return: dict containing template stored on s3 with overriding spark code file name and env variables.
+        """
+        return Overrider.override_template_fields(self.spark_template, self.configs, job_file_name, env_vars, self.load_dict_func, parent_path)
 
 def load_template(config_manager: ConfigManager, config_types: Set[Type] = None, bucket: str = "spark", key: str = "templates/spark_operator_spec.json"):
     """
@@ -113,6 +127,7 @@ def load_template(config_manager: ConfigManager, config_types: Set[Type] = None,
          aws_access_key_id=config_manager.storage_config.access_key,
          aws_secret_access_key=config_manager.storage_config.secret_key,
      )
+    logger.info(f"Loading template from s3://{bucket}/{key}")
     s3_obj = s3_client.get_object(Bucket=bucket, Key=key)
 
     if key.lower().endswith("yaml") or key.lower().endswith("yml"):

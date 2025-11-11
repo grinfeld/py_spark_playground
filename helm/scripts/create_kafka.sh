@@ -135,7 +135,7 @@ kafkaCluster:
     roles: [controller, broker]
     storage:
       type: persistent-claim
-      size: 10Gi
+      size: 5Gi
       deleteClaim: true
 
 # Configuration for the Kafka topics
@@ -222,10 +222,10 @@ kafkaConnect:
   resources:
     requests:
       cpu: "500m"
-      memory: "2Gi"
+      memory: "1Gi"
     limits:
       cpu: "1"
-      memory: "3Gi"
+      memory: "2500Mi"
   jvmOptions:
     -Xms: 512m
     -Xmx: 2g
