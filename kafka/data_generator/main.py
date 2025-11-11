@@ -39,7 +39,7 @@ def generate_single(occurrences: int):
             "Subscription_Date": now - fake.random_int(1, seconds_in_year),
             "Website": fake.url(),
         })
-        producer.produce(kafka_topic, value=msg.rstrip(), delivery_report=delivery_report)
+        producer.produce(kafka_topic, value=msg.rstrip(), on_delivery=delivery_report)
     producer.flush()
     logger.info(f"Sent to kafka {occurrences} events")
 
